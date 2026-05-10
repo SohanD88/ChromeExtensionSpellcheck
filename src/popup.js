@@ -32,9 +32,19 @@ input.addEventListener("change", (event) => {
 })
 
 const hotKeyInput = document.getElementById("hotkey")
+
+function isMac() {
+    return navigator.platform.toUpperCase().includes("MAC")
+}
+
 function eventToHotkey(event) {
     const parts = []
-    if (event.ctrlKey)
+    const usesMod = isMac() ? event.metaKey : event.ctrlKey
+    if (usesMod)
+    {
+        parts.push("Mod")
+    }
+    if (isMac() && event.ctrlKey)
     {
         parts.push("Ctrl")
     }
@@ -46,10 +56,6 @@ function eventToHotkey(event) {
     {
         parts.push("Shift")
     }
-    if (event.metaKey)
-    {
-        parts.push("Meta")
-    }
     const key = event.key.length === 1
         ? event.key.toUpperCase() : event.key
 
@@ -58,11 +64,10 @@ function eventToHotkey(event) {
     }
 
     return parts.join("+")
-
 }
 
 chrome.storage.sync.get("hotkey", (data) => {
-    hotKeyInput.value = data.hotkey || "Ctrl+Shift+K"
+    hotKeyInput.value = data.hotkey || "Mod+Shift+K"
 })
 
 hotKeyInput.addEventListener("keydown", (event) => {

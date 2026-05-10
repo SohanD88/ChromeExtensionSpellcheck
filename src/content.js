@@ -3,10 +3,19 @@
 const blurFilter = "blur(6px)"
 let textToBlur = ""
 
-let hotkey = "Ctrl+Shift+K"
+let hotkey = "Mod+Shift+K"
+function isMac() {
+    return navigator.platform.toUpperCase().includes("MAC")
+}
+
 function eventToHotkey(event) {
     const parts = []
-    if (event.ctrlKey)
+    const usesMod = isMac() ? event.metaKey : event.ctrlKey
+    if (usesMod)
+    {
+        parts.push("Mod")
+    }
+    if (isMac() && event.ctrlKey)
     {
         parts.push("Ctrl")
     }
@@ -17,10 +26,6 @@ function eventToHotkey(event) {
     if (event.shiftKey)
     {
         parts.push("Shift")
-    }
-    if (event.metaKey)
-    {
-        parts.push("Meta")
     }
     const key = event.key.length === 1
         ? event.key.toUpperCase() : event.key
