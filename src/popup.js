@@ -30,3 +30,47 @@ input.addEventListener("change", (event) => {
         void chrome.storage.sync.set({"item": event.target.value})
     }
 })
+
+const hotKeyInput = document.getElementById("hotkey")
+function eventToHotkey(event) {
+    const parts = []
+    if (event.ctrlKey)
+    {
+        parts.push("Ctrl")
+    }
+    if (event.altKey)
+    {
+        parts.push("Alt")
+    }
+    if (event.shiftKey)
+    {
+        parts.push("Shift")
+    }
+    if (event.metaKey)
+    {
+        parts.push("Meta")
+    }
+    const key = event.key.length === 1
+        ? event.key.toUpperCase() : event.key
+
+    if (!["Control", "Shift", "Alt", "Meta"].includes(key)) {
+        parts.push(key)
+    }
+
+    return parts.join("+")
+
+}
+
+chrome.storage.sync.get("hotkey", (data) => {
+    hotKeyInput.value = data.hotkey || "Ctrl+Shift+K"
+})
+
+hotKeyInput.addEventListener("keydown", (event) => {
+    event.preventDefault()
+    const hotkey = eventToHotkey(event)
+    if (hotkey) {
+        hotKeyInput.value = hotkey
+        void chrome.storage.sync.set({"hotkey": hotkey})
+    }
+})
+
