@@ -1,6 +1,7 @@
 "use strict"
 
 let hotkey = "Mod+Shift+K"
+let pendingCorrection = null
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
 }
@@ -52,7 +53,7 @@ function isTextElement(element) {
     return textTypes.includes(element.type)
 }
 
-function getWordBeforeCursor(element) {
+/*function getWordBeforeCursor(element) {
     const value = element.value
     const cursorPosition = element.selectionStart || 0
     const isWordChar = (char) => /[a-zA-Z0-9_]/.test(char)
@@ -79,8 +80,7 @@ function getWordBeforeCursor(element) {
 
     return {word: value.slice(startIndex, endIndex), cursorPosition, startIndex, endIndex}
 
-}
-
+} */
 async function checkSpelling(sentence, cursorPosition) {
     const response = await fetch("http://127.0.0.1:8000/spellcheck", {
         method: "POST",
@@ -98,10 +98,43 @@ async function checkSpelling(sentence, cursorPosition) {
     return await response.json()
 }
 
+function handleCorrection(event) {
+    if (pendingCorrection === null) {
+        return false
+    }
+    const item = pendingCorrection
+    if (event.key === "Enter") {
+        event.preventDefault()
+        const prev = item.element.value.slice(0, item.start)
+        const post = item.element.value.slice(item.end)
+
+        item.element.value = prev + item.correction + post
+        const newCursorPos = item.start + item.correction.length
+        item.element.setSelectionRange(newCursorPos, newCursorPos)
+        console.log("Accepted correction: ", {word: item.word, correction: item.correction})
+        pendingCorrection = null
+        return true
+    }
+
+    if (event.key === "Escape") {
+        event.preventDefault()
+        item.element.setSelectionRange(item.end, item.end)
+        console.log("Rejected correction: ", {word: item.word, correction: item.correction})
+        pendingCorrection = null
+        return true
+    }
+    pendingCorrection = null
+    return false
+}
+
 // Enable the content script by default.
 let enabled = true
 const keys = ["enabled", "hotkey"]
 document.addEventListener("keydown", async (event) => {
+    if (handleCorrection(event)) {
+        return
+    }
+
     if (!enabled) {
         return
     }
@@ -122,8 +155,9 @@ document.addEventListener("keydown", async (event) => {
         const result = await checkSpelling(sentence, cursorPosition)
         console.log("Spellcheck result:", result)
 
-        if (result.word !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
+        if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
         {
+            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end}
             activeElement.focus()
             activeElement.setSelectionRange(result.start, result.end)
         }
