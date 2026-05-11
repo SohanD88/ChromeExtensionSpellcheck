@@ -109,7 +109,11 @@ function handleCorrection(event) {
         const post = item.element.value.slice(item.end)
 
         item.element.value = prev + item.correction + post
-        const newCursorPos = item.start + item.correction.length
+        let newCursorPos = item.originalCursor
+        const lengthDiff = item.correction.length - item.word.length
+        if (item.originalCursor > item.end) {
+            newCursorPos += item.correction.length - item.word.length
+        }
         item.element.setSelectionRange(newCursorPos, newCursorPos)
         console.log("Accepted correction: ", {word: item.word, correction: item.correction})
         pendingCorrection = null
@@ -118,7 +122,7 @@ function handleCorrection(event) {
 
     if (event.key === "Escape") {
         event.preventDefault()
-        item.element.setSelectionRange(item.end, item.end)
+        item.element.setSelectionRange(item.originalCursor, item.originalCursor)
         console.log("Rejected correction: ", {word: item.word, correction: item.correction})
         pendingCorrection = null
         return true
@@ -157,7 +161,7 @@ document.addEventListener("keydown", async (event) => {
 
         if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
         {
-            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end}
+            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end, originalCursor: cursorPosition,}
             activeElement.focus()
             activeElement.setSelectionRange(result.start, result.end)
         }
