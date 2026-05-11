@@ -5,8 +5,8 @@ spell = SC()
 
 def get_word_and_position(sentence):
     words = []
-    for march in re.finditer(r"[A-Za-z]+", sentence):
-        words.append({"word": march.group(), "start": march.start(), "end": march.end()})
+    for match in re.finditer(r"[A-Za-z]+", sentence):
+        words.append({"word": match.group(), "start": match.start(), "end": match.end()})
     return words
 
 def find_misspelled_word(sentence, cursor_position):
