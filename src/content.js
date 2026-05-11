@@ -31,7 +31,7 @@ function eventToHotkey(event) {
         }     
 
     const key = event.key.length === 1
-        ? event.key.toUpperCase() : event.key
+        ? event.key.toUpperCase() : event.key  
 
     if (!["Control", "Shift", "Alt", "Meta"].includes(key)) {
         parts.push(key)
@@ -48,7 +48,7 @@ function isTextElement(element) {
         return false
     }
 
-    const textTypes = ["text", "search", "url", "tel", "password"]
+    const textTypes = ["text", "search", "url", "tel"]
     return textTypes.includes(element.type)
 }
 
@@ -121,6 +121,13 @@ document.addEventListener("keydown", async (event) => {
     {
         const result = await checkSpelling(sentence, cursorPosition)
         console.log("Spellcheck result:", result)
+
+        if (result.word !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
+        {
+            activeElement.focus()
+            activeElement.setSelectionRange(result.start, result.end)
+        }
+    
     }
     catch (error)
     {
