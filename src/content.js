@@ -81,10 +81,27 @@ function getWordBeforeCursor(element) {
 
 }
 
+async function checkSpelling(sentence, cursorPosition) {
+    const response = await fetch("http://127.0.0.1:8000/spellcheck", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({sentence: sentence, cursor_position: cursorPosition }),
+
+    })
+
+    if (!response.ok) {
+        throw new Error("Spellcheck req failed: " + response.status)
+
+    }
+    return await response.json()
+}
+
 // Enable the content script by default.
 let enabled = true
 const keys = ["enabled", "hotkey"]
-document.addEventListener("keydown", (event) => {
+document.addEventListener("keydown", async (event) => {
     if (!enabled) {
         return
     }
@@ -96,12 +113,19 @@ document.addEventListener("keydown", (event) => {
         return
     }
     event.preventDefault()
-    const res = getWordBeforeCursor(activeElement)
-    if (res.word !== "") {
-        activeElement.setSelectionRange(res.startIndex, res.endIndex)
+    
+    const sentence = activeElement.value
+    const cursorPosition = activeElement.selectionStart ?? 0
+
+    try
+    {
+        const result = await checkSpelling(sentence, cursorPosition)
+        console.log("Spellcheck result:", result)
     }
-    console.log("Highlighted word:", res.word)
-    console.log("Cursor position:", res.cursorPosition)
+    catch (error)
+    {
+        console.error("Spellcheck backend error: ", error)
+    }
 })
 
 
