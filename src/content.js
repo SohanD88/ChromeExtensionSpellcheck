@@ -52,26 +52,33 @@ function isTextElement(element) {
     return textTypes.includes(element.type)
 }
 
-function getWordAtCursor(element) {
+function getWordBeforeCursor(element) {
     const value = element.value
-    const start = element.selectionStart || 0
-    const end = element.selectionEnd || start
-
-    if (start !== end) {
-        return {word: value.slice(start, end), cursorPosition: start,}
+    const cursorPosition = element.selectionStart || 0
+    const isWordChar = (char) => /[a-zA-Z0-9_]/.test(char)
+    let endIndex = cursorPosition
+    //If cursor is after spaces or punctuation, move cursor to the end of the last word
+    while (endIndex > 0 && !isWordChar(value[endIndex - 1])) {
+        endIndex--
     }
 
-    const isWordChar = (char) => /[A-Za-z0-9_]/.test(char)
+    //If there is no word before the cursor, return nothing
+    if (endIndex === 0 && !isWordChar(value[0])) {
+        return {word: "", cursorPosition, startIndex: cursorPosition, endIndex: cursorPosition}
+    }
 
-    let l = start
-    let r = start
-    while (l > 0 && isWordChar(value[l - 1])) {
-        l--
+    let startIndex = endIndex
+    //move to start of the word
+    while (startIndex > 0 && isWordChar(value[startIndex - 1])) {
+        startIndex--
     }
-    while (r < value.length && isWordChar(value[r])) {
-        r++
+    //if cursor in middle of word, go to the end of the word
+    while (endIndex < value.length && isWordChar(value[endIndex])) {
+        endIndex++
     }
-    return {word: value.slice(l, r), cursorPosition: start,}
+
+    return {word: value.slice(startIndex, endIndex), cursorPosition, startIndex, endIndex}
+
 }
 
 // Enable the content script by default.
@@ -89,9 +96,12 @@ document.addEventListener("keydown", (event) => {
         return
     }
     event.preventDefault()
-    const res = getWordAtCursor(activeElement)
-    console.log("Clicked word: " + res.word)
-    console.log("Cursor position: " + res.cursorPosition)
+    const res = getWordBeforeCursor(activeElement)
+    if (res.word !== "") {
+        activeElement.setSelectionRange(res.startIndex, res.endIndex)
+    }
+    console.log("Highlighted word:", res.word)
+    console.log("Cursor position:", res.cursorPosition)
 })
 
 
