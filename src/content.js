@@ -1,8 +1,5 @@
 "use strict"
 
-const blurFilter = "blur(6px)"
-let textToBlur = ""
-
 let hotkey = "Mod+Shift+K"
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
@@ -27,6 +24,12 @@ function eventToHotkey(event) {
     {
         parts.push("Shift")
     }
+
+    if (typeof event.key !== "string")
+        {
+            return ""
+        }     
+
     const key = event.key.length === 1
         ? event.key.toUpperCase() : event.key
 
@@ -71,7 +74,13 @@ function getWordAtCursor(element) {
     return {word: value.slice(l, r), cursorPosition: start,}
 }
 
+// Enable the content script by default.
+let enabled = true
+const keys = ["enabled", "hotkey"]
 document.addEventListener("keydown", (event) => {
+    if (!enabled) {
+        return
+    }
     if (eventToHotkey(event) !== hotkey) {
         return
     }
@@ -88,66 +97,28 @@ document.addEventListener("keydown", (event) => {
 
 
 
-// Search this DOM node for text to blur and blur the parent element if found.
-function processNode(node) {
-    if (node.childNodes.length > 0) {
-        Array.from(node.childNodes).forEach(processNode)
-    }
-    if (node.nodeType === Node.TEXT_NODE &&
-        node.textContent !== null && node.textContent.trim().length > 0) {
-        const parent = node.parentElement
-        if (parent !== null &&
-            (parent.tagName === 'SCRIPT' || parent.style.filter === blurFilter)) {
-            // Already blurred
-            return
-        }
-        if (node.textContent.includes(textToBlur)) {
-            blurElement(parent)
-        }
-    }
-}
-
-function blurElement(elem) {
-    elem.style.filter = blurFilter
-    console.debug("blurred id:" + elem.id + " class:" + elem.className +
-        " tag:" + elem.tagName + " text:" + elem.textContent)
-}
-
-// Create a MutationObserver to watch for changes to the DOM.
-const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        if (mutation.addedNodes.length > 0) {
-            mutation.addedNodes.forEach(processNode)
-        } else {
-            processNode(mutation.target)
-        }
-    })
-})
-
-// Enable the content script by default.
-let enabled = true
-const keys = ["enabled", "item", "hotkey"]
-
 chrome.storage.sync.get(keys, (data) => {
     if (data.enabled === false) {
         enabled = false
     }
-    if (data.item) {
-        textToBlur = data.item
-    }
+    
     if (data.hotkey) {
         hotkey = data.hotkey
     }
 
-    // Only start observing the DOM if the extension is enabled and there is text to blur.
-    if (enabled && textToBlur.trim().length > 0) {
-        observer.observe(document, {
-            attributes: false,
-            characterData: true,
-            childList: true,
-            subtree: true,
-        })
-        // Loop through all elements on the page for initial processing.
-        processNode(document)
+
+})
+
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") {
+        return
+    }
+    if (changes.enabled) {
+        enabled = changes.enabled.newValue === true
+
+    }
+    if (changes.hotkey) {
+        hotkey = changes.hotkey.newValue || "Mod+Shift+K"
     }
 })
+

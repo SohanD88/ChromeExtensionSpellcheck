@@ -10,8 +10,8 @@ function setBadgeText(enabled) {
 // Handle the ON/OFF switch
 const checkbox = document.getElementById("enabled")
 chrome.storage.sync.get("enabled", (data) => {
-    checkbox.checked = !!data.enabled
-    void setBadgeText(data.enabled)
+    checkbox.checked = data.enabled != false
+    void setBadgeText(checkbox.checked)
 })
 checkbox.addEventListener("change", (event) => {
     if (event.target instanceof HTMLInputElement) {
@@ -20,16 +20,6 @@ checkbox.addEventListener("change", (event) => {
     }
 })
 
-// Handle the input field
-const input = document.getElementById("item")
-chrome.storage.sync.get("item", (data) => {
-    input.value = data.item || ""
-});
-input.addEventListener("change", (event) => {
-    if (event.target instanceof HTMLInputElement) {
-        void chrome.storage.sync.set({"item": event.target.value})
-    }
-})
 
 const hotKeyInput = document.getElementById("hotkey")
 
