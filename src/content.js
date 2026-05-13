@@ -2,6 +2,7 @@
 
 let hotkey = "Mod+Shift+K"
 let pendingCorrection = null
+let correctionPopup = null
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
 }
@@ -98,38 +99,115 @@ async function checkSpelling(sentence, cursorPosition) {
     return await response.json()
 }
 
-function handleCorrection(event) {
+function hideCorrectionPopup() {
+    if (correctionPopup !== null) {
+        correctionPopup.remove()
+        correctionPopup = null
+    }
+}
+
+function showCorrectionPopup(item) {
+        hideCorrectionPopup()
+
+        const box = item.element.getBoundingClientRect()
+        const popup = document.createElement("div")
+        popup.style.position = "fixed"
+        popup.style.left = `${box.left}px`
+        popup.style.top = `${box.top + 50}px`
+        popup.style.zIndex = "2147483647"
+        popup.style.color = "white"
+        popup.style.padding = "10px 12px"
+        popup.style.borderRadius = "8px"
+        popup.style.boxShadow = "0 2px 10px rgba(0,0,0,0.25)"
+        popup.style.font = "13px, system-ui, sans-serif"
+
+        popup.innerHTML = `
+        <button type="button" data-action="accept" style="all: unset; cursor: pointer; font-weight: 600;">
+            ${item.word} → ${item.correction}
+        </button>
+        <div style="margin-top: 4px; color: #d1d5db;">
+            Enter to accept • Esc to cancel
+        </div>
+        <button type="button" data-action="cancel" style="all: unset; cursor: pointer; margin-top: 6px; color: #93c5fd;">
+            Cancel
+        </button>
+    `
+    popup.addEventListener("mousedown", (event) => {
+        event.preventDefault()
+    })
+
+    popup.addEventListener("click", (event) => {
+        const target = event.target
+        if (!(target instanceof HTMLElement)) {
+            return
+        }
+        if (target.dataset.action === "accept") {
+            acceptCorrection()
+        }
+        if (target.dataset.action === "cancel") {
+            cancelCorrection()
+        }
+    })
+    document.documentElement.appendChild(popup)
+    correctionPopup = popup
+}
+
+function acceptCorrection() {
+    if (pendingCorrection === null) {
+        return false
+
+    }
+    const item = pendingCorrection
+    const prev = item.element.value.slice(0, item.start)
+    const post = item.element.value.slice(item.end)
+
+    item.element.value = prev + item.correction + post
+    let newCursorPos = item.originalCursor
+    if (item.originalCursor > item.end) {
+        newCursorPos += item.correction.length - item.word.length
+    }
+    item.element.focus()
+    item.element.setSelectionRange(newCursorPos, newCursorPos)
+
+    console.log("Accepted correction: ", {word: item.word, correction: item.correction})
+    pendingCorrection = null
+    hideCorrectionPopup()
+    return true
+}
+
+function cancelCorrection() {
     if (pendingCorrection === null) {
         return false
     }
     const item = pendingCorrection
+    item.element.focus()
+    item.element.setSelectionRange(item.originalCursor, item.originalCursor)
+    console.log("Rejected correction: ", {word: item.word, correction: item.correction})
+    pendingCorrection = null
+    hideCorrectionPopup()
+    return true
+}
+
+function handleCorrection(event) {
+    if (pendingCorrection === null) {
+        return false
+    }
+
     if (event.key === "Enter") {
         event.preventDefault()
-        const prev = item.element.value.slice(0, item.start)
-        const post = item.element.value.slice(item.end)
-
-        item.element.value = prev + item.correction + post
-        let newCursorPos = item.originalCursor
-        const lengthDiff = item.correction.length - item.word.length
-        if (item.originalCursor > item.end) {
-            newCursorPos += item.correction.length - item.word.length
-        }
-        item.element.setSelectionRange(newCursorPos, newCursorPos)
-        console.log("Accepted correction: ", {word: item.word, correction: item.correction})
-        pendingCorrection = null
-        return true
+        return acceptCorrection()
     }
 
     if (event.key === "Escape") {
         event.preventDefault()
-        item.element.setSelectionRange(item.originalCursor, item.originalCursor)
-        console.log("Rejected correction: ", {word: item.word, correction: item.correction})
-        pendingCorrection = null
-        return true
+        return cancelCorrection()
     }
+
     pendingCorrection = null
+    hideCorrectionPopup()
     return false
 }
+
 
 // Enable the content script by default.
 let enabled = true
@@ -164,6 +242,11 @@ document.addEventListener("keydown", async (event) => {
             pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end, originalCursor: cursorPosition,}
             activeElement.focus()
             activeElement.setSelectionRange(result.start, result.end)
+            showCorrectionPopup(pendingCorrection)
+        }
+        else {
+            pendingCorrection = null
+            hideCorrectionPopup()
         }
     
     }
