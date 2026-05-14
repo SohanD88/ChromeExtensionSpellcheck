@@ -106,14 +106,56 @@ function hideCorrectionPopup() {
     }
 }
 
+function getTextPosition(element, index) {
+    const rect = element.getBoundingClientRect()
+    const style = window.getComputedStyle(element)
+
+    const mirror = document.createElement("div")
+    mirror.style.position = "fixed"
+    mirror.style.visibility = "hidden"
+    mirror.style.whiteSpace = element instanceof HTMLTextAreaElement ? "pre-wrap" : "pre"
+    mirror.style.wordWrap = "break-word"
+    mirror.style.overflow = "hidden"
+
+    mirror.style.left = `${rect.left}px`
+    mirror.style.top = `${rect.top}px`
+    mirror.style.width = `${rect.width}px`
+    mirror.style.height = `${rect.height}px`
+
+    mirror.style.font = style.font
+    mirror.style.letterSpacing = style.letterSpacing
+    mirror.style.padding = style.padding
+    mirror.style.border = style.border
+    mirror.style.boxSizing = style.boxSizing
+    mirror.style.lineHeight = style.lineHeight
+
+    const before = document.createTextNode(element.value.slice(0, index))
+    const marker = document.createElement("span")
+    marker.textContent = element.value.slice(index, index + 1) || " "
+
+    mirror.appendChild(before)
+    mirror.appendChild(marker)
+    document.body.appendChild(mirror)
+
+    const markerRect = marker.getBoundingClientRect()
+    document.body.removeChild(mirror)
+
+    return {
+        left: markerRect.left - element.scrollLeft,
+        top: markerRect.bottom - element.scrollTop
+    }
+}
+
+
 function showCorrectionPopup(item) {
         hideCorrectionPopup()
 
         const box = item.element.getBoundingClientRect()
         const popup = document.createElement("div")
         popup.style.position = "fixed"
-        popup.style.left = `${box.left}px`
-        popup.style.top = `${box.top + 50}px`
+        const position = getTextPosition(item.element, item.start)
+        popup.style.left = `${position.left}px`
+        popup.style.top = `${position.top + 8}px`
         popup.style.zIndex = "2147483647"
         popup.style.color = "white"
         popup.style.padding = "10px 12px"
