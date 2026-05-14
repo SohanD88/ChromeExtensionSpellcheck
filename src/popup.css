@@ -1,57 +1,169 @@
-/* The switch - the box around the slider */
-.switch {
-    margin-left: 30%; /* Center the switch */
-    position: relative;
-    display: inline-block;
-    width: 60px;
-    height: 34px;
+* {
+    box-sizing: border-box;
 }
 
-/* Hide default HTML checkbox */
+body {
+    margin: 0;
+    width: 320px;
+    background: #f8fafc;
+    color: #111827;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.menu {
+    padding: 14px;
+}
+
+.menu-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.brand-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 750;
+}
+
+.brand-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+h1,
+p {
+    margin: 0;
+}
+
+h1 {
+    font-size: 16px;
+    line-height: 1.2;
+    font-weight: 700;
+}
+
+.brand-copy p {
+    margin-top: 2px;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.status-pill {
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+.status-pill.off {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.setting-row,
+.field-group {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.setting-title,
+.field-group label {
+    display: block;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.setting-description,
+.field-group p {
+    margin-top: 4px;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 44px;
+    height: 26px;
+}
+
 .switch input {
     opacity: 0;
     width: 0;
     height: 0;
 }
 
-/* The slider */
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
+    inset: 0;
+    border-radius: 999px;
+    background: #d1d5db;
+    transition: background-color 140ms ease;
 }
 
 .slider::before {
     position: absolute;
     content: "";
-    height: 26px;
-    width: 26px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
+    width: 20px;
+    height: 20px;
+    left: 3px;
+    top: 3px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+    transition: transform 140ms ease;
 }
 
 input:checked + .slider {
-    background-color: #2196F3;
+    background: #2563eb;
 }
 
-input:checked + .slider:before {
-    transform: translateX(26px); /* Move the slider to the right when checked */
+input:checked + .slider::before {
+    transform: translateX(18px);
 }
 
-/* Rounded sliders */
-.slider.round {
-    border-radius: 34px;
+.field-group {
+    padding: 12px;
 }
 
-.slider.round::before {
-    border-radius: 50%;
+#hotkey {
+    width: 100%;
+    margin-top: 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    background: #ffffff;
+    color: #111827;
+    padding: 9px 10px;
+    font: 650 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    outline: none;
 }
 
-.secret {
-    margin: 5px;
+#hotkey:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }

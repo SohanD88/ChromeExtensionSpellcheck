@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "My Chrome Extension",
+    "name": "Floh",
     "version": "0.1.0",
-    "description": "My first Chrome extension.",
+    "description": "Fast spelling corrections for text boxes.",
     "action": {
     "default_popup": "popup.html"
     },

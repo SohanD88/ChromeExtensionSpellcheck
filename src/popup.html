@@ -1,14 +1,38 @@
 <html lang="en">
 <head>
-    <title>My popup</title>
+    <title>Floh</title>
     <link rel="stylesheet" type="text/css" href="popup.css">
 </head>
 <body>
-<label class="switch">
-    <input id="enabled" type="checkbox">
-    <span class="slider round"></span>
-</label>
-<input class="secret" id="hotkey" type="text" placeholder="Hotkey">
-<script src="popup.js"></script>
+    <main class="menu">
+        <header class="menu-header">
+            <div class="brand-mark">F</div>
+            <div class="brand-copy">
+                <h1>Floh</h1>
+                <p>Writing helper</p>
+            </div>
+            <span id="status-text" class="status-pill">On</span>
+        </header>
+
+        <section class="setting-row">
+            <div>
+                <label for="enabled" class="setting-title">Spellcheck</label>
+                <p class="setting-description">Highlight and fix typos in text boxes.</p>
+            </div>
+
+            <label class="switch" aria-label="Enable Floh spellcheck">
+                <input id="enabled" type="checkbox">
+                <span class="slider"></span>
+            </label>
+        </section>
+
+        <section class="field-group">
+            <label for="hotkey">Shortcut</label>
+            <input id="hotkey" type="text" spellcheck="false" autocomplete="off">
+            <p>Click the field, then press the key combo you want to use.</p>
+        </section>
+    </main>
+
+    <script src="popup.js"></script>
 </body>
 </html>
