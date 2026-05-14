@@ -19,6 +19,8 @@ def find_misspelled_word(sentence, cursor_position):
         checked_word = og_word.lower()
         if checked_word in spell.unknown([checked_word]):
             correction = spell.correction(checked_word)
+            if correction is None:
+                continue
             return {"word": og_word, "correction": correction, "start": item["start"], "end": item["end"], "cursor_position": cursor_position}
         
     return {"word": None, "correction": None, "start": None, "end": None, "cursor_position": cursor_position}
