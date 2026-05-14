@@ -54,6 +54,217 @@ function isTextElement(element) {
     return textTypes.includes(element.type)
 }
 
+function getContentEditableElement(element) {
+    if (!(element instanceof HTMLElement)) {
+        return null
+    }
+    return element.closest("[contenteditable='true'], [role='textbox'][contenteditable='true']")
+
+}
+
+function getActiveEditor() {
+    const activeElement = document.activeElement
+
+    if (isTextElement(activeElement)) {
+        return createInputEditor(activeElement)
+    }
+
+    const activeContentEditable = getContentEditableElement(activeElement)
+    if (activeContentEditable !== null) {
+        return createContentEditableEditor(activeContentEditable)
+    }
+
+    const selection = window.getSelection()
+    if (selection && selection.rangeCount > 0) {
+        const node = selection.anchorNode
+        const element = node instanceof HTMLElement
+            ? node
+            : node?.parentElement
+
+        const selectedContentEditable = getContentEditableElement(element)
+        if (selectedContentEditable !== null) {
+            return createContentEditableEditor(selectedContentEditable)
+        }
+    }
+
+    return null
+}
+
+
+function createInputEditor(element) {
+    return {
+        root: element,
+        getText() {
+            return element.value
+        },
+        getCursorIndex() {
+            return element.selectionStart ?? 0
+        },
+
+        focus() {
+            element.focus()
+        },
+        selectRange(start, end) {
+            element.focus()
+            element.setSelectionRange(start, end)
+        },
+
+        replaceRange(start, end, replacement) {
+            const prev = element.value.slice(0, start)
+            const post = element.value.slice(end)
+            element.value = prev + replacement + post
+        },
+
+        getTextPosition(index)
+        {
+            return getInputTextPosition(element, index)
+        }
+    }
+}
+
+function buildContentEditableTextModel(element) {
+    const parts = []
+    let text = ""
+    const blockElements = new Set(["DIV", "P", "BR"])
+
+    function appendTextNode(node) {
+        const val = node.nodeValue || ""
+        const start = text.length
+        text += val
+        const end = text.length
+        parts.push({node, start, end})
+    }
+
+    function appendLine()
+    {
+        if (text.length > 0 && !text.endsWith("\n")) {
+            text += "\n"
+        }
+    }
+
+    function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            appendTextNode(node)
+            return
+        }
+
+        if (!(node instanceof HTMLElement)) {
+            return
+        }
+
+        if (node.tagName === "BR") {
+            text += "\n"
+            return
+        }
+
+        for (const child of node.childNodes) {
+            walk(child)
+        }
+        
+        if (node !== element && blockElements.has(node.tagName)) {
+            appendLine()
+        }
+    }
+    walk(element)
+    return {text, parts}
+}
+
+function getContentEditableTextPosition(root, index) 
+    {
+        const model = buildContentEditableTextModel(root)
+        for (const part of model.parts) {
+            if (index >= part.start && index <= part.end) {
+                return {node: part.node, offset: index - part.start}
+            }
+        }
+
+        const last = model.parts[model.parts.length - 1]
+        if (last)
+        {
+            return {node: last.node, offset: (last.node.nodeValue || "").length}
+        }
+        
+        return {node: root, offset: 0}
+    }
+
+function getContentEditableRange(root, start, end) 
+{
+    const startPos = getContentEditableTextPosition(root, start)
+    const endPos = getContentEditableTextPosition(root, end)
+    const range = document.createRange()
+    range.setStart(startPos.node, startPos.offset)
+    range.setEnd(endPos.node, endPos.offset)
+    return range
+}
+
+function createContentEditableEditor(root) {
+    if (!root.hasAttribute("tabindex")) 
+    {
+        root.setAttribute("tabindex", "-1")
+    }
+    return {
+        root,
+
+        getText() {
+            return buildContentEditableTextModel(root).text
+        },
+
+        getCursorIndex() {
+            const selection = window.getSelection()
+            if (!selection || selection.rangeCount === 0) {
+                return 0
+            }
+
+            const range = selection.getRangeAt(0)
+            if (!root.contains(range.startContainer)) {
+                return 0
+            }
+
+            const beforeCursorRange = document.createRange()
+            beforeCursorRange.selectNodeContents(root)
+            beforeCursorRange.setEnd(range.startContainer, range.startOffset)
+
+            return beforeCursorRange.toString().length
+        },
+
+
+        focus() {
+            root.focus()
+        },
+
+        selectRange(start, end) {
+            root.focus()
+            const range = getContentEditableRange(root, start, end)
+            const selection = window.getSelection()
+            selection.removeAllRanges()
+            selection.addRange(range)
+        },
+
+        replaceRange(start, end, replacement) {
+            const range = getContentEditableRange(root, start, end)
+            range.deleteContents()
+            range.insertNode(document.createTextNode(replacement))
+            root.normalize()
+        },
+
+
+        getTextPosition(index) {
+            const range = getContentEditableRange(root, index, index + 1)
+            const rect = range.getBoundingClientRect()
+
+            if (rect.width === 0 && rect.height === 0) {
+                const rootRect = root.getBoundingClientRect()
+                return {left: rootRect.left, top: rootRect.bottom}
+            }
+
+            return {left: rect.left, top: rect.bottom}
+        }
+
+
+    }
+}
+
+
 function matchCasing(original, correction) {
     if (!correction) {
         return correction
@@ -99,7 +310,7 @@ function clearPendingCorrection() {
     hideCorrectionPopup()
 }
 
-function getTextPosition(element, index) {
+function getInputTextPosition(element, index) {
     const rect = element.getBoundingClientRect()
     const style = window.getComputedStyle(element)
 
@@ -142,12 +353,10 @@ function getTextPosition(element, index) {
 
 function showCorrectionPopup(item) {
         hideCorrectionPopup()
-
-        const box = item.element.getBoundingClientRect()
         const popup = document.createElement("div")
-        const theme = window.getComputedStyle(item.element)
+        const theme = window.getComputedStyle(item.editor.root)
         popup.style.position = "fixed"
-        const position = getTextPosition(item.element, item.start)
+        const position = item.editor.getTextPosition(item.start)
         popup.style.left = `${position.left}px`
         popup.style.top = `${position.top + 8}px`
         popup.style.zIndex = "2147483647"
@@ -195,33 +404,39 @@ function showCorrectionPopup(item) {
 function acceptCorrection() {
     if (pendingCorrection === null) {
         return false
-
     }
-    const item = pendingCorrection
-    const prev = item.element.value.slice(0, item.start)
-    const post = item.element.value.slice(item.end)
 
-    item.element.value = prev + item.correction + post
+    const item = pendingCorrection
+
+    item.editor.replaceRange(item.start, item.end, item.correction)
+
     let newCursorPos = item.originalCursor
     if (item.originalCursor > item.end) {
         newCursorPos += item.correction.length - item.word.length
     }
-    item.element.focus()
-    item.element.setSelectionRange(newCursorPos, newCursorPos)
 
-    console.log("Accepted correction: ", {word: item.word, correction: item.correction})
+    item.editor.focus()
+    item.editor.selectRange(newCursorPos, newCursorPos)
+
+    console.log("Accepted correction: ", {
+        word: item.word,
+        correction: item.correction
+    })
+
     pendingCorrection = null
     hideCorrectionPopup()
     return true
 }
+
 
 function cancelCorrection() {
     if (pendingCorrection === null) {
         return false
     }
     const item = pendingCorrection
-    item.element.focus()
-    item.element.setSelectionRange(item.originalCursor, item.originalCursor)
+    item.editor.focus()
+    item.editor.selectRange(item.originalCursor, item.originalCursor)
+
     console.log("Rejected correction: ", {word: item.word, correction: item.correction})
     pendingCorrection = null
     hideCorrectionPopup()
@@ -262,6 +477,13 @@ function handleCorrection(event) {
 let enabled = true
 const keys = ["enabled", "hotkey"]
 document.addEventListener("keydown", async (event) => {
+    console.log("Floh keydown:", {
+        key: event.key,
+        hotkeyPressed: eventToHotkey(event),
+        expectedHotkey: hotkey,
+        enabled: enabled
+    })
+
     if (handleCorrection(event)) {
         return
     }
@@ -272,16 +494,20 @@ document.addEventListener("keydown", async (event) => {
     if (eventToHotkey(event) !== hotkey) {
         return
     }
-    const activeElement = document.activeElement
-    if (!isTextElement(activeElement)) {
+    const editor = getActiveEditor()
+    console.log("Floh editor:", editor)
+
+    if (editor === null) {
         return
     }
+
     event.preventDefault()
     
-    const sentence = activeElement.value
-    const visibleCursor = activeElement.selectionStart ?? 0
+    const sentence = editor.getText()
+    const visibleCursor = editor.getCursorIndex()
+
     const previousCorrection = pendingCorrection
-    const isSkippingCurrent = previousCorrection !== null && previousCorrection.element === activeElement
+    const isSkippingCurrent = previousCorrection !== null && previousCorrection.editor.root === editor.root
     const cursorPosition = isSkippingCurrent ? Math.max(0, previousCorrection.start - 1) : visibleCursor
     const originalCursor = isSkippingCurrent ? previousCorrection.originalCursor : visibleCursor
 
@@ -294,14 +520,15 @@ document.addEventListener("keydown", async (event) => {
         if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
         {
             const casedC = matchCasing(result.word, result.correction)
-            pendingCorrection = {element: activeElement, word: result.word, correction: casedC, start: result.start, end: result.end, originalCursor: originalCursor,}
-            activeElement.focus()
-            activeElement.setSelectionRange(result.start, result.end)
+            pendingCorrection = {editor, word: result.word, correction: casedC, start: result.start, end: result.end, originalCursor: originalCursor,}
+            editor.focus()
+            editor.selectRange(result.start, result.end)
+
             showCorrectionPopup(pendingCorrection)
         }
         else {
             if (isSkippingCurrent) {
-                activeElement.setSelectionRange(originalCursor, originalCursor)
+                editor.selectRange(originalCursor, originalCursor)
             }
             clearPendingCorrection()
         }
@@ -311,7 +538,7 @@ document.addEventListener("keydown", async (event) => {
     {
         console.error("Spellcheck backend error: ", error)
     }
-})
+}, true)
 
 
 
