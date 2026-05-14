@@ -12,9 +12,11 @@ When the extension is enabled:
 2. Press the configured hotkey.
 3. The extension sends the full text and cursor position to the local backend.
 4. The backend finds the most recent misspelled word at or before the cursor.
-5. The extension highlights that word.
-6. Press `Enter` to accept the correction.
-7. Press `Escape` to reject the correction.
+5. The extension highlights that word and shows an in-page popup near it.
+6. The popup shows the typo and the suggested correction.
+7. Press `Enter` or click the correction to accept it.
+8. Press `Escape` or click `Cancel` to reject it.
+9. Press the hotkey again while a typo is highlighted to skip it and move to the previous misspelled word.
 
 The correction result is also printed in the browser console.
 
@@ -44,7 +46,7 @@ From the project folder:
 cd /Users/sohandadana/Python/ChromeSpellcheck/ChromeExtensionSpellcheck
 source venv/bin/activate
 pip install fastapi uvicorn pyspellchecker
-uvicorn spellcheckAPI:app --reload
+python -m uvicorn spellcheckAPI:app --reload
 ```
 
 The backend should run at:
@@ -129,18 +131,49 @@ ChromeExtensionSpellcheck/src
 https://textarea.page/
 ```
 
-2. Type a sentence with a spelling mistake:
+2. Type a sentence with multiple spelling mistakes:
 
 ```text
-This is a missplelled sentnce
+There is a speling error in this setnece.
 ```
 
 3. Click inside the text.
-4. Put the cursor after or inside the misspelled word.
+4. Put the cursor near the end of the sentence.
 5. Press the configured hotkey.
-6. The misspelled word should become highlighted.
-7. Press `Enter` to replace it with the backend correction.
-8. Press `Escape` to reject the correction.
+6. The first misspelled word found at or before the cursor should become highlighted. In the example above, this should be `setnece`.
+7. Press the hotkey again to skip `setnece` and move to the previous misspelled word, `speling`.
+8. Press `Enter` to replace the currently highlighted word with the backend correction.
+9. Press `Escape` to reject the currently highlighted correction.
+10. You can also click the correction or `Cancel` in the in-page popup.
+
+## Correction Popup
+
+When a typo is highlighted, the extension shows a small in-page popup near the word.
+
+Example:
+
+```text
+setnece -> sentence
+Enter to accept • Esc to cancel
+```
+
+You can accept with `Enter` or by clicking the correction. You can reject with `Escape` or by clicking `Cancel`.
+
+## Skipping Corrections
+
+If a typo is highlighted and you want to leave it unchanged, press the configured hotkey again. The extension keeps the current word unchanged and searches for the previous misspelled word before it.
+
+## Capitalization
+
+The extension preserves basic word casing when applying corrections.
+
+Examples:
+
+```text
+teher -> there
+Teher -> There
+TEHER -> THERE
+```
 
 ## Hotkey
 
@@ -177,8 +210,8 @@ Current limitations:
 - Rich text editors are not supported yet.
 - Corrections come from `pyspellchecker`.
 - Only one highlighted correction is handled at a time.
-- The extension does not show a visual popup suggestion yet.
-- The extension does not preserve capitalization perfectly yet.
+- The popup currently shows one correction option from the backend.
+- Casing preservation handles common lowercase, capitalized, and all-uppercase words, but not every mixed-case style.
 - The extension logs debugging information to the browser console.
 
 ## Project Files

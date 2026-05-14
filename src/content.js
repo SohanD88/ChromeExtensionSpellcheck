@@ -145,17 +145,22 @@ function showCorrectionPopup(item) {
 
         const box = item.element.getBoundingClientRect()
         const popup = document.createElement("div")
+        const theme = window.getComputedStyle(item.element)
         popup.style.position = "fixed"
         const position = getTextPosition(item.element, item.start)
         popup.style.left = `${position.left}px`
         popup.style.top = `${position.top + 8}px`
         popup.style.zIndex = "2147483647"
-        popup.style.color = "white"
+        popup.style.background = theme.backgroundColor
+        popup.style.color = theme.color
         popup.style.padding = "10px 12px"
         popup.style.borderRadius = "8px"
         popup.style.boxShadow = "0 2px 10px rgba(0,0,0,0.25)"
-        popup.style.font = "13px, system-ui, sans-serif"
-
+        popup.style.font = "13px system-ui, sans-serif"
+        popup.style.lineHeight = "1.35"
+        popup.style.maxWidth = "360px"
+        popup.style.pointerEvents = "auto"
+        popup.style.border = `1px solid ${theme.color}`
         popup.innerHTML = `
         <button type="button" data-action="accept" style="all: unset; cursor: pointer; font-weight: 600;">
             ${item.word} → ${item.correction}
