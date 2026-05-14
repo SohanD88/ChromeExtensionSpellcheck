@@ -54,34 +54,22 @@ function isTextElement(element) {
     return textTypes.includes(element.type)
 }
 
-/*function getWordBeforeCursor(element) {
-    const value = element.value
-    const cursorPosition = element.selectionStart || 0
-    const isWordChar = (char) => /[a-zA-Z0-9_]/.test(char)
-    let endIndex = cursorPosition
-    //If cursor is after spaces or punctuation, move cursor to the end of the last word
-    while (endIndex > 0 && !isWordChar(value[endIndex - 1])) {
-        endIndex--
+function matchCasing(original, correction) {
+    if (!correction) {
+        return correction
     }
-
-    //If there is no word before the cursor, return nothing
-    if (endIndex === 0 && !isWordChar(value[0])) {
-        return {word: "", cursorPosition, startIndex: cursorPosition, endIndex: cursorPosition}
+    if (original === original.toUpperCase()) {
+        return correction.toUpperCase()
     }
-
-    let startIndex = endIndex
-    //move to start of the word
-    while (startIndex > 0 && isWordChar(value[startIndex - 1])) {
-        startIndex--
+    const firstLetter = original.charAt(0)
+    const rest = original.slice(1)
+    const isCapital = firstLetter === firstLetter.toUpperCase() && rest === rest.toLowerCase()
+    if (isCapital) {
+        return correction.charAt(0).toUpperCase() + correction.slice(1).toLowerCase()
     }
-    //if cursor in middle of word, go to the end of the word
-    while (endIndex < value.length && isWordChar(value[endIndex])) {
-        endIndex++
-    }
+    return correction
+}
 
-    return {word: value.slice(startIndex, endIndex), cursorPosition, startIndex, endIndex}
-
-} */
 async function checkSpelling(sentence, cursorPosition) {
     const response = await fetch("http://127.0.0.1:8000/spellcheck", {
         method: "POST",
@@ -300,7 +288,8 @@ document.addEventListener("keydown", async (event) => {
 
         if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
         {
-            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end, originalCursor: originalCursor,}
+            const casedC = matchCasing(result.word, result.correction)
+            pendingCorrection = {element: activeElement, word: result.word, correction: casedC, start: result.start, end: result.end, originalCursor: originalCursor,}
             activeElement.focus()
             activeElement.setSelectionRange(result.start, result.end)
             showCorrectionPopup(pendingCorrection)
