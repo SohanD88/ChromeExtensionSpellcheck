@@ -106,6 +106,11 @@ function hideCorrectionPopup() {
     }
 }
 
+function clearPendingCorrection() {
+    pendingCorrection = null
+    hideCorrectionPopup()
+}
+
 function getTextPosition(element, index) {
     const rect = element.getBoundingClientRect()
     const style = window.getComputedStyle(element)
@@ -245,9 +250,18 @@ function handleCorrection(event) {
         return cancelCorrection()
     }
 
-    pendingCorrection = null
-    hideCorrectionPopup()
+    const modifierKeys = ["Control", "Meta", "Alt", "Shift"]
+    if (modifierKeys.includes(event.key)) {
+        return false
+    }
+
+    if (eventToHotkey(event) === hotkey) {
+        return false
+    }
+
+    clearPendingCorrection()
     return false
+
 }
 
 
@@ -272,7 +286,12 @@ document.addEventListener("keydown", async (event) => {
     event.preventDefault()
     
     const sentence = activeElement.value
-    const cursorPosition = activeElement.selectionStart ?? 0
+    const visibleCursor = activeElement.selectionStart ?? 0
+    const previousCorrection = pendingCorrection
+    const isSkippingCurrent = previousCorrection !== null && previousCorrection.element === activeElement
+    const cursorPosition = isSkippingCurrent ? Math.max(0, previousCorrection.start - 1) : visibleCursor
+    const originalCursor = isSkippingCurrent ? previousCorrection.originalCursor : visibleCursor
+
 
     try
     {
@@ -281,14 +300,16 @@ document.addEventListener("keydown", async (event) => {
 
         if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
         {
-            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end, originalCursor: cursorPosition,}
+            pendingCorrection = {element: activeElement, word: result.word, correction: result.correction, start: result.start, end: result.end, originalCursor: originalCursor,}
             activeElement.focus()
             activeElement.setSelectionRange(result.start, result.end)
             showCorrectionPopup(pendingCorrection)
         }
         else {
-            pendingCorrection = null
-            hideCorrectionPopup()
+            if (isSkippingCurrent) {
+                activeElement.setSelectionRange(originalCursor, originalCursor)
+            }
+            clearPendingCorrection()
         }
     
     }
