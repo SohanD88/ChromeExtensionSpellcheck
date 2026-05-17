@@ -265,6 +265,9 @@ function createContentEditableEditor(root) {
     }
 }
 
+function normalizeIgnoredWord(word) {
+    return word.trim().toLowerCase()
+}
 
 function matchCasing(original, correction) {
     if (!correction) {
@@ -310,6 +313,23 @@ function clearPendingCorrection() {
     pendingCorrection = null
     hideCorrectionPopup()
 }
+
+function saveIgnoredWord(word) {
+    const normalizedWord = normalizeIgnoredWord(word)
+
+    if (!normalizedWord) {
+        return false
+    }
+
+    if (ignoredWords.includes(normalizedWord)) {
+        return false
+    }
+
+    ignoredWords = [...ignoredWords, normalizedWord].sort()
+    void chrome.storage.sync.set({"ignoredWords": ignoredWords})
+    return true
+}
+
 
 function getInputTextPosition(element, index) {
     const rect = element.getBoundingClientRect()
@@ -376,11 +396,15 @@ function showCorrectionPopup(item) {
             ${item.word} → ${item.correction}
         </button>
         <div style="margin-top: 4px; color: #d1d5db;">
-            Enter to accept • Esc to cancel
+            Enter to accept • Esc to cancel • D to add to dictionary
         </div>
         <button type="button" data-action="cancel" style="all: unset; cursor: pointer; margin-top: 6px; color: #93c5fd;">
             Cancel
         </button>
+        <button type="button" data-action="dictionary" style="all: unset; cursor: pointer; margin-top: 6px; margin-left: 10px; color: #93c5fd;">
+            Add to dictionary
+        </button>
+
     `
     popup.addEventListener("mousedown", (event) => {
         event.preventDefault()
@@ -397,6 +421,11 @@ function showCorrectionPopup(item) {
         if (target.dataset.action === "cancel") {
             cancelCorrection()
         }
+
+        if (target.dataset.action === "dictionary") {
+            void addCurrentWordToDictionary()
+        }
+
     })
     document.documentElement.appendChild(popup)
     correctionPopup = popup
@@ -459,6 +488,13 @@ function handleCorrection(event) {
         return cancelCorrection()
     }
 
+    if (event.key.toLowerCase() === "d") {
+        event.preventDefault()
+        void addCurrentWordToDictionary()
+        return true
+    }
+
+
     const modifierKeys = ["Control", "Meta", "Alt", "Shift"]
     if (modifierKeys.includes(event.key)) {
         return false
@@ -473,18 +509,72 @@ function handleCorrection(event) {
 
 }
 
+async function addCurrentWordToDictionary() {
+    if (pendingCorrection === null) {
+        return false
+    }
+
+    const item = pendingCorrection
+    saveIgnoredWord(item.word)
+
+    const editor = item.editor
+    const cursorPosition = Math.max(0, item.start - 1)
+    const originalCursor = item.originalCursor
+
+    clearPendingCorrection()
+
+    await runSpellcheck(editor, cursorPosition, originalCursor, true)
+    return true
+}
+
+
 
 // Enable the content script by default.
 let enabled = true
 const keys = ["enabled", "hotkey", "ignoredWords"]
-document.addEventListener("keydown", async (event) => {
-    console.log("Floh keydown:", {
-        key: event.key,
-        hotkeyPressed: eventToHotkey(event),
-        expectedHotkey: hotkey,
-        enabled: enabled
-    })
 
+async function runSpellcheck(editor, cursorPosition, originalCursor, isSkippingCurrent) {
+    try {
+        const sentence = editor.getText()
+        const result = await checkSpelling(sentence, cursorPosition)
+
+        if (
+            result.word !== null &&
+            result.correction !== null &&
+            Number.isInteger(result.start) &&
+            Number.isInteger(result.end)
+        ) {
+            const casedC = matchCasing(result.word, result.correction)
+
+            pendingCorrection = {
+                editor,
+                word: result.word,
+                correction: casedC,
+                start: result.start,
+                end: result.end,
+                originalCursor: originalCursor,
+            }
+
+            editor.focus()
+            editor.selectRange(result.start, result.end)
+            showCorrectionPopup(pendingCorrection)
+            return true
+        }
+
+        if (isSkippingCurrent) {
+            editor.selectRange(originalCursor, originalCursor)
+        }
+
+        clearPendingCorrection()
+        return false
+    }
+    catch (error) {
+        console.error("Spellcheck backend error: ", error)
+        return false
+    }
+}
+
+document.addEventListener("keydown", async (event) => {
     if (handleCorrection(event)) {
         return
     }
@@ -496,7 +586,6 @@ document.addEventListener("keydown", async (event) => {
         return
     }
     const editor = getActiveEditor()
-    console.log("Floh editor:", editor)
 
     if (editor === null) {
         return
@@ -504,45 +593,15 @@ document.addEventListener("keydown", async (event) => {
 
     event.preventDefault()
     
-    const sentence = editor.getText()
     const visibleCursor = editor.getCursorIndex()
 
     const previousCorrection = pendingCorrection
     const isSkippingCurrent = previousCorrection !== null && previousCorrection.editor.root === editor.root
     const cursorPosition = isSkippingCurrent ? Math.max(0, previousCorrection.start - 1) : visibleCursor
     const originalCursor = isSkippingCurrent ? previousCorrection.originalCursor : visibleCursor
+    await runSpellcheck(editor, cursorPosition, originalCursor, isSkippingCurrent)
 
-
-    try
-    {
-        const result = await checkSpelling(sentence, cursorPosition)
-        console.log("Spellcheck result:", result)
-
-        if (result.word !== null && result.correction !== null && Number.isInteger(result.start) && Number.isInteger(result.end)) 
-        {
-            const casedC = matchCasing(result.word, result.correction)
-            pendingCorrection = {editor, word: result.word, correction: casedC, start: result.start, end: result.end, originalCursor: originalCursor,}
-            editor.focus()
-            editor.selectRange(result.start, result.end)
-
-            showCorrectionPopup(pendingCorrection)
-        }
-        else {
-            if (isSkippingCurrent) {
-                editor.selectRange(originalCursor, originalCursor)
-            }
-            clearPendingCorrection()
-        }
-    
-    }
-    catch (error)
-    {
-        console.error("Spellcheck backend error: ", error)
-    }
 }, true)
-
-
-
 
 chrome.storage.sync.get(keys, (data) => {
     if (data.enabled === false) {
