@@ -17,6 +17,7 @@ app.add_middleware(
 class SpellcheckRequest(BaseModel):
     sentence: str
     cursor_position: int
+    ignored_words: list[str] = []
 
 @app.get("/health")
 def health_check():
@@ -24,6 +25,6 @@ def health_check():
 
 @app.post("/spellcheck")
 def spellcheck(request: SpellcheckRequest):
-    result = find_misspelled_word(request.sentence, request.cursor_position)
+    result = find_misspelled_word(request.sentence, request.cursor_position, request.ignored_words)
     return result
 

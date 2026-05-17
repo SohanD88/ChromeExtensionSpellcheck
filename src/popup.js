@@ -7,6 +7,65 @@ function setBadgeText(enabled) {
 
 const checkbox = document.getElementById("enabled")
 const statusText = document.getElementById("status-text")
+const ignoredWordInput = document.getElementById("ignored-word-input")
+const addIgnoredWordButton = document.getElementById("add-ignored-word")
+const ignoredWordsList = document.getElementById("ignored-words-list")
+const ignoredWordsEmpty = document.getElementById("ignored-words-empty")
+
+let ignoredWords = []
+function normalizeIgnoredWord(word) {
+    return word.trim().toLowerCase()
+}
+
+function renderIgnoredWords() {
+    ignoredWordsList.innerHTML = ""
+    ignoredWordsEmpty.hidden = ignoredWords.length > 0
+    for (const word of ignoredWords) {
+        const piece = document.createElement("div")
+        piece.className = "ignored-word-chip"
+        const text = document.createElement("span")
+        text.textContent = word
+        const removeButton = document.createElement("button")
+        removeButton.type = "button"
+        removeButton.textContent = "Remove"
+        removeButton.addEventListener("click", () => {
+            ignoredWords = ignoredWords.filter(w => w !== word)
+            void chrome.storage.sync.set({"ignoredWords": ignoredWords})
+            renderIgnoredWords()
+        })
+        piece.appendChild(text)
+        piece.appendChild(removeButton)
+        ignoredWordsList.appendChild(piece)
+    }
+}
+
+function addIgnoredWord() {
+    const word = normalizeIgnoredWord(ignoredWordInput.value)
+    if (!word) {
+        return
+    }
+    if (!ignoredWords.includes(word)) {
+        ignoredWords = [...ignoredWords, word].sort()
+        void chrome.storage.sync.set({"ignoredWords": ignoredWords})
+    }
+    ignoredWordInput.value = ""
+    renderIgnoredWords()
+}
+
+chrome.storage.sync.get("ignoredWords", (data) => {
+    ignoredWords = Array.isArray(data.ignoredWords) ? data.ignoredWords : []
+    renderIgnoredWords()
+})
+
+addIgnoredWordButton.addEventListener("click", addIgnoredWord)
+
+ignoredWordInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        event.preventDefault()
+        addIgnoredWord()
+    }
+})
+
 
 function renderEnabledState(enabled) {
     checkbox.checked = enabled

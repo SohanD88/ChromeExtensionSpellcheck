@@ -167,3 +167,65 @@ input:checked + .slider::before {
     border-color: #2563eb;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
+
+.ignored-words-section {
+    margin-top: 10px;
+}
+
+.ignored-word-form {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#ignored-word-input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    padding: 8px 9px;
+    font: 500 13px system-ui, sans-serif;
+    outline: none;
+}
+
+#ignored-word-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+#add-ignored-word {
+    border: 0;
+    border-radius: 7px;
+    background: #2563eb;
+    color: white;
+    padding: 0 11px;
+    font: 700 13px system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.ignored-words-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.ignored-word-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    background: #f9fafb;
+    padding: 5px 7px;
+    font-size: 12px;
+}
+
+.ignored-word-chip button {
+    border: 0;
+    background: transparent;
+    color: #6b7280;
+    padding: 0;
+    font: 700 11px system-ui, sans-serif;
+    cursor: pointer;
+}

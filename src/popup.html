@@ -31,6 +31,17 @@
             <input id="hotkey" type="text" spellcheck="false" autocomplete="off">
             <p>Click the field, then press the key combo you want to use.</p>
         </section>
+
+        <section class="field-group ignored-words-section">
+            <label for="ignored-word-input">Ignored words</label>
+            <div class="ignored-word-form">
+                <input id="ignored-word-input" type="text" spellcheck="false" autocomplete="off" placeholder="Add a word">
+                <button id="add-ignored-word" type="button">Add</button>
+            </div>
+            <div id="ignored-words-list" class="ignored-words-list"></div>
+            <p id="ignored-words-empty">No ignored words yet.</p>
+        </section>
+
     </main>
 
     <script src="popup.js"></script>

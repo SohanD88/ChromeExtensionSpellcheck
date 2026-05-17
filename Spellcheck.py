@@ -9,14 +9,18 @@ def get_word_and_position(sentence):
         words.append({"word": match.group(), "start": match.start(), "end": match.end()})
     return words
 
-def find_misspelled_word(sentence, cursor_position):
+def find_misspelled_word(sentence, cursor_position, ignored_words=None):
     cursor_position = max(0, min(cursor_position, len(sentence)))
+    ignored_words = ignored_words or []
+    ignored_words = {word.lower() for word in ignored_words}
     words = get_word_and_position(sentence)
     words_before_cursor = [w for w in words if w["start"] <= cursor_position]
 
     for item in reversed(words_before_cursor):
         og_word = item["word"]
         checked_word = og_word.lower()
+        if checked_word in ignored_words:
+            continue
         if checked_word in spell.unknown([checked_word]):
             correction = spell.correction(checked_word)
             if correction is None:

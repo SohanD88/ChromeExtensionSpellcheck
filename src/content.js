@@ -3,6 +3,7 @@
 let hotkey = "Mod+Shift+K"
 let pendingCorrection = null
 let correctionPopup = null
+let ignoredWords = []
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
 }
@@ -287,7 +288,7 @@ async function checkSpelling(sentence, cursorPosition) {
         headers: {
             "Content-Type": "application/json"
         },
-        body: JSON.stringify({sentence: sentence, cursor_position: cursorPosition }),
+        body: JSON.stringify({sentence: sentence, cursor_position: cursorPosition, ignored_words: ignoredWords }),
 
     })
 
@@ -475,7 +476,7 @@ function handleCorrection(event) {
 
 // Enable the content script by default.
 let enabled = true
-const keys = ["enabled", "hotkey"]
+const keys = ["enabled", "hotkey", "ignoredWords"]
 document.addEventListener("keydown", async (event) => {
     console.log("Floh keydown:", {
         key: event.key,
@@ -552,6 +553,10 @@ chrome.storage.sync.get(keys, (data) => {
         hotkey = data.hotkey
     }
 
+    if (Array.isArray(data.ignoredWords)) {
+        ignoredWords = data.ignoredWords
+    }
+
 
 })
 
@@ -565,6 +570,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
     }
     if (changes.hotkey) {
         hotkey = changes.hotkey.newValue || "Mod+Shift+K"
+    }
+
+    if (changes.ignoredWords) {
+        ignoredWords = Array.isArray(changes.ignoredWords.newValue) ? changes.ignoredWords.newValue : []
     }
 })
 
