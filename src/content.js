@@ -373,39 +373,119 @@ function getInputTextPosition(element, index) {
 
 
 function showCorrectionPopup(item) {
-        hideCorrectionPopup()
-        const popup = document.createElement("div")
-        const theme = window.getComputedStyle(item.editor.root)
-        popup.style.position = "fixed"
-        const position = item.editor.getTextPosition(item.start)
-        popup.style.left = `${position.left}px`
-        popup.style.top = `${position.top + 8}px`
-        popup.style.zIndex = "2147483647"
-        popup.style.background = theme.backgroundColor
-        popup.style.color = theme.color
-        popup.style.padding = "10px 12px"
-        popup.style.borderRadius = "8px"
-        popup.style.boxShadow = "0 2px 10px rgba(0,0,0,0.25)"
-        popup.style.font = "13px system-ui, sans-serif"
-        popup.style.lineHeight = "1.35"
-        popup.style.maxWidth = "360px"
-        popup.style.pointerEvents = "auto"
-        popup.style.border = `1px solid ${theme.color}`
-        popup.innerHTML = `
-        <button type="button" data-action="accept" style="all: unset; cursor: pointer; font-weight: 600;">
-            ${item.word} → ${item.correction}
-        </button>
-        <div style="margin-top: 4px; color: #d1d5db;">
-            Enter to accept • Esc to cancel • D to add to dictionary
-        </div>
-        <button type="button" data-action="cancel" style="all: unset; cursor: pointer; margin-top: 6px; color: #93c5fd;">
-            Cancel
-        </button>
-        <button type="button" data-action="dictionary" style="all: unset; cursor: pointer; margin-top: 6px; margin-left: 10px; color: #93c5fd;">
-            Add to dictionary
-        </button>
+    hideCorrectionPopup()
 
-    `
+    const popup = document.createElement("div")
+    const theme = window.getComputedStyle(item.editor.root)
+    const isTransparent = (color) => {
+        return !color || color === "transparent" || color === "rgba(0, 0, 0, 0)"
+    }
+    const bodyTheme = window.getComputedStyle(document.body)
+    const background = isTransparent(theme.backgroundColor)
+        ? (isTransparent(bodyTheme.backgroundColor) ? "#111827" : bodyTheme.backgroundColor)
+        : theme.backgroundColor
+    const textColor = isTransparent(theme.color) ? "#ffffff" : theme.color
+    const position = item.editor.getTextPosition(item.start)
+
+    popup.style.position = "fixed"
+    popup.style.left = `${position.left}px`
+    popup.style.top = `${position.top + 8}px`
+    popup.style.zIndex = "2147483647"
+    popup.style.minWidth = "260px"
+    popup.style.maxWidth = "380px"
+    popup.style.background = background
+    popup.style.color = textColor
+    popup.style.padding = "12px"
+    popup.style.borderRadius = "10px"
+    popup.style.boxShadow = "0 14px 32px rgba(0, 0, 0, 0.28)"
+    popup.style.font = "13px system-ui, sans-serif"
+    popup.style.lineHeight = "1.35"
+    popup.style.pointerEvents = "auto"
+    popup.style.border = `1px solid ${textColor}`
+    popup.style.opacity = "0"
+    popup.style.transform = "translateY(4px) scale(0.98)"
+    popup.style.transition = "opacity 120ms ease, transform 120ms ease"
+
+    const label = document.createElement("div")
+    label.textContent = "Floh suggestion"
+    label.style.fontSize = "11px"
+    label.style.fontWeight = "700"
+    label.style.letterSpacing = "0"
+    label.style.marginBottom = "8px"
+    label.style.opacity = "0.68"
+
+    const correctionButton = document.createElement("button")
+    correctionButton.type = "button"
+    correctionButton.dataset.action = "accept"
+    correctionButton.style.all = "unset"
+    correctionButton.style.boxSizing = "border-box"
+    correctionButton.style.display = "flex"
+    correctionButton.style.alignItems = "center"
+    correctionButton.style.gap = "8px"
+    correctionButton.style.width = "100%"
+    correctionButton.style.cursor = "pointer"
+    correctionButton.style.fontWeight = "750"
+    correctionButton.style.fontSize = "15px"
+
+    const wrongWord = document.createElement("span")
+    wrongWord.textContent = item.word
+    wrongWord.style.textDecoration = "line-through"
+    wrongWord.style.opacity = "0.72"
+
+    const arrow = document.createElement("span")
+    arrow.textContent = "->"
+    arrow.style.opacity = "0.7"
+
+    const correctedWord = document.createElement("span")
+    correctedWord.textContent = item.correction
+
+    correctionButton.appendChild(wrongWord)
+    correctionButton.appendChild(arrow)
+    correctionButton.appendChild(correctedWord)
+
+    const actions = document.createElement("div")
+    actions.style.display = "flex"
+    actions.style.flexWrap = "wrap"
+    actions.style.gap = "6px"
+    actions.style.marginTop = "10px"
+
+    function createActionButton(action, key, labelText) {
+        const button = document.createElement("button")
+        button.type = "button"
+        button.dataset.action = action
+        button.style.all = "unset"
+        button.style.boxSizing = "border-box"
+        button.style.display = "inline-flex"
+        button.style.alignItems = "center"
+        button.style.gap = "5px"
+        button.style.border = `1px solid ${textColor}`
+        button.style.borderRadius = "999px"
+        button.style.padding = "5px 8px"
+        button.style.cursor = "pointer"
+        button.style.fontSize = "12px"
+        button.style.fontWeight = "650"
+        button.style.opacity = "0.82"
+
+        const keyElement = document.createElement("span")
+        keyElement.textContent = key
+        keyElement.style.font = "700 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+
+        const textElement = document.createElement("span")
+        textElement.textContent = labelText
+
+        button.appendChild(keyElement)
+        button.appendChild(textElement)
+        return button
+    }
+
+    actions.appendChild(createActionButton("accept", "Enter", "Accept"))
+    actions.appendChild(createActionButton("cancel", "Esc", "Cancel"))
+    actions.appendChild(createActionButton("dictionary", "D", "Add word"))
+
+    popup.appendChild(label)
+    popup.appendChild(correctionButton)
+    popup.appendChild(actions)
+
     popup.addEventListener("mousedown", (event) => {
         event.preventDefault()
     })
@@ -415,19 +495,47 @@ function showCorrectionPopup(item) {
         if (!(target instanceof HTMLElement)) {
             return
         }
-        if (target.dataset.action === "accept") {
+        const actionElement = target.closest("[data-action]")
+        if (!(actionElement instanceof HTMLElement) || !popup.contains(actionElement)) {
+            return
+        }
+        if (actionElement.dataset.action === "accept") {
             acceptCorrection()
         }
-        if (target.dataset.action === "cancel") {
+        if (actionElement.dataset.action === "cancel") {
             cancelCorrection()
         }
 
-        if (target.dataset.action === "dictionary") {
+        if (actionElement.dataset.action === "dictionary") {
             void addCurrentWordToDictionary()
         }
 
     })
     document.documentElement.appendChild(popup)
+
+    const popupRect = popup.getBoundingClientRect()
+    const margin = 8
+    let left = position.left
+    let top = position.top + 8
+
+    if (left + popupRect.width + margin > window.innerWidth) {
+        left = Math.max(margin, window.innerWidth - popupRect.width - margin)
+    }
+    if (left < margin) {
+        left = margin
+    }
+    if (top + popupRect.height + margin > window.innerHeight) {
+        top = Math.max(margin, position.top - popupRect.height - 8)
+    }
+
+    popup.style.left = `${left}px`
+    popup.style.top = `${top}px`
+
+    requestAnimationFrame(() => {
+        popup.style.opacity = "1"
+        popup.style.transform = "translateY(0) scale(1)"
+    })
+
     correctionPopup = popup
 }
 
@@ -635,4 +743,3 @@ chrome.storage.onChanged.addListener((changes, area) => {
         ignoredWords = Array.isArray(changes.ignoredWords.newValue) ? changes.ignoredWords.newValue : []
     }
 })
-
