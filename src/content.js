@@ -55,12 +55,40 @@ function isTextElement(element) {
     return textTypes.includes(element.type)
 }
 
-function getContentEditableElement(element) {
-    if (!(element instanceof HTMLElement)) {
+const CONTENT_EDITABLE_SELECTOR = [
+    "[contenteditable='true']",
+    "[contenteditable='plaintext-only']",
+    "[g_editable='true'][contenteditable='true']",
+    "[aria-label='Message Body'][contenteditable='true']",
+    "[role='textbox'][contenteditable='true']"
+].join(", ")
+
+function getElementFromNode(node) {
+    if (node instanceof HTMLElement) {
+        return node
+    }
+
+    if (node instanceof Node) {
+        return node.parentElement
+    }
+
+    return null
+}
+
+function getContentEditableElement(node) {
+    const element = getElementFromNode(node)
+
+    if (element === null) {
         return null
     }
-    return element.closest("[contenteditable='true'], [role='textbox'][contenteditable='true']")
 
+    const editor = element.closest(CONTENT_EDITABLE_SELECTOR)
+
+    if (!(editor instanceof HTMLElement)) {
+        return null
+    }
+
+    return editor
 }
 
 function getActiveEditor() {
@@ -77,18 +105,25 @@ function getActiveEditor() {
 
     const selection = window.getSelection()
     if (selection && selection.rangeCount > 0) {
-        const node = selection.anchorNode
-        const element = node instanceof HTMLElement
-            ? node
-            : node?.parentElement
-
-        const selectedContentEditable = getContentEditableElement(element)
+        const selectedContentEditable = getContentEditableElement(selection.anchorNode)
         if (selectedContentEditable !== null) {
             return createContentEditableEditor(selectedContentEditable)
         }
     }
 
     return null
+}
+
+function dispatchReplacementInput(element, replacement) {
+    try {
+        element.dispatchEvent(new InputEvent("input", {
+            bubbles: true,
+            inputType: "insertReplacementText",
+            data: replacement
+        }))
+    } catch (error) {
+        element.dispatchEvent(new Event("input", {bubbles: true}))
+    }
 }
 
 
@@ -114,7 +149,9 @@ function createInputEditor(element) {
             const prev = element.value.slice(0, start)
             const post = element.value.slice(end)
             element.value = prev + replacement + post
+            dispatchReplacementInput(element, replacement)
         },
+
 
         getTextPosition(index)
         {
@@ -170,64 +207,88 @@ function buildContentEditableTextModel(element) {
     return {text, parts}
 }
 
-function getContentEditableTextPosition(root, index) 
-    {
-        const model = buildContentEditableTextModel(root)
-        for (const part of model.parts) {
-            if (index >= part.start && index <= part.end) {
-                return {node: part.node, offset: index - part.start}
-            }
+function getContentEditableTextPosition(root, model, index) {
+    for (const part of model.parts) {
+        if (index >= part.start && index <= part.end) {
+            return {node: part.node, offset: index - part.start}
         }
-
-        const last = model.parts[model.parts.length - 1]
-        if (last)
-        {
-            return {node: last.node, offset: (last.node.nodeValue || "").length}
-        }
-        
-        return {node: root, offset: 0}
     }
 
-function getContentEditableRange(root, start, end) 
-{
-    const startPos = getContentEditableTextPosition(root, start)
-    const endPos = getContentEditableTextPosition(root, end)
+    const last = model.parts[model.parts.length - 1]
+    if (last) {
+        return {node: last.node, offset: (last.node.nodeValue || "").length}
+    }
+
+    return {node: root, offset: 0}
+}
+
+
+function getContentEditableRange(root, model, start, end) {
+    const startPos = getContentEditableTextPosition(root, model, start)
+    const endPos = getContentEditableTextPosition(root, model, end)
+
     const range = document.createRange()
     range.setStart(startPos.node, startPos.offset)
     range.setEnd(endPos.node, endPos.offset)
+
     return range
 }
+
+function getContentEditableCursorIndex(root, model) {
+    const selection = window.getSelection()
+
+    if (!selection || selection.rangeCount === 0) {
+        return 0
+    }
+
+    const range = selection.getRangeAt(0)
+
+    if (range.startContainer !== root && !root.contains(range.startContainer)) {
+        return 0
+    }
+
+    if (range.startContainer.nodeType === Node.TEXT_NODE) {
+        for (const part of model.parts) {
+            if (part.node === range.startContainer) {
+                const offset = Math.min(range.startOffset, part.end - part.start)
+                return part.start + offset
+            }
+        }
+    }
+
+    const beforeCursorRange = document.createRange()
+    beforeCursorRange.selectNodeContents(root)
+    beforeCursorRange.setEnd(range.startContainer, range.startOffset)
+
+    return Math.min(beforeCursorRange.toString().length, model.text.length)
+}
+
 
 function createContentEditableEditor(root) {
     if (!root.hasAttribute("tabindex")) 
     {
         root.setAttribute("tabindex", "-1")
     }
+    let cachedModel = null
+
+    function getModel() {
+        if (cachedModel === null) {
+            cachedModel = buildContentEditableTextModel(root)
+        }
+
+        return cachedModel
+    }
+
     return {
         root,
 
         getText() {
-            return buildContentEditableTextModel(root).text
+            return getModel().text
         },
 
         getCursorIndex() {
-            const selection = window.getSelection()
-            if (!selection || selection.rangeCount === 0) {
-                return 0
-            }
-
-            const range = selection.getRangeAt(0)
-            if (!root.contains(range.startContainer)) {
-                return 0
-            }
-
-            const beforeCursorRange = document.createRange()
-            beforeCursorRange.selectNodeContents(root)
-            beforeCursorRange.setEnd(range.startContainer, range.startOffset)
-
-            return beforeCursorRange.toString().length
+            return getContentEditableCursorIndex(root, getModel())
         },
-
 
         focus() {
             root.focus()
@@ -235,24 +296,27 @@ function createContentEditableEditor(root) {
 
         selectRange(start, end) {
             root.focus()
-            const range = getContentEditableRange(root, start, end)
+            const range = getContentEditableRange(root, getModel(), start, end)
             const selection = window.getSelection()
             selection.removeAllRanges()
             selection.addRange(range)
         },
 
         replaceRange(start, end, replacement) {
-            const range = getContentEditableRange(root, start, end)
+            const range = getContentEditableRange(root, getModel(), start, end)
             range.deleteContents()
             range.insertNode(document.createTextNode(replacement))
             root.normalize()
+            cachedModel = null
+            dispatchReplacementInput(root, replacement)
         },
 
 
-        getTextPosition(index) {
-            const range = getContentEditableRange(root, index, index + 1)
-            const rect = range.getBoundingClientRect()
 
+
+        getTextPosition(index) {
+            const range = getContentEditableRange(root, getModel(), index, index + 1)
+            const rect = range.getClientRects()[0] || range.getBoundingClientRect()
             if (rect.width === 0 && rect.height === 0) {
                 const rootRect = root.getBoundingClientRect()
                 return {left: rootRect.left, top: rootRect.bottom}
