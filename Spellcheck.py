@@ -23,7 +23,7 @@ def empty_result(cursor_position):
     }
 
 
-def normalize_ignored_words(ignored_words):
+def normalize_ignored_words(ignored_words): 
     return {
         word.strip().lower()
         for word in (ignored_words or [])
