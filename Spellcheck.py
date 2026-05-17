@@ -1,33 +1,119 @@
+import os
 import re
 import sys
-from spellchecker import SpellChecker as SC
-spell = SC()
 
-def get_word_and_position(sentence):
-    words = []
-    for match in re.finditer(r"[A-Za-z]+", sentence):
-        words.append({"word": match.group(), "start": match.start(), "end": match.end()})
-    return words
+import requests
+
+LANGUAGETOOL_URL = os.getenv(
+    "LANGUAGETOOL_URL",
+    "http://127.0.0.1:8081/v2/check",
+)
+
+LANGUAGE = os.getenv("LANGUAGETOOL_LANGUAGE", "en-US")
+TIMEOUT_SECONDS = 5
+
+
+def empty_result(cursor_position):
+    return {
+        "word": None,
+        "correction": None,
+        "start": None,
+        "end": None,
+        "cursor_position": cursor_position,
+    }
+
+
+def normalize_ignored_words(ignored_words):
+    return {
+        word.strip().lower()
+        for word in (ignored_words or [])
+        if word.strip()
+    }
+
+
+def is_spelling_match(match):
+    rule = match.get("rule", {})
+    category = rule.get("category", {})
+
+    return (
+        rule.get("issueType") == "misspelling"
+        or category.get("id") == "TYPOS"
+    )
+
+
+def has_whitespace(text):
+    return re.search(r"\s", text) is not None
+
+
+def get_languagetool_matches(sentence):
+    response = requests.post(
+        LANGUAGETOOL_URL,
+        data={
+            "text": sentence,
+            "language": LANGUAGE,
+        },
+        timeout=TIMEOUT_SECONDS,
+    )
+
+    response.raise_for_status()
+    data = response.json()
+    return data.get("matches", [])
+
 
 def find_misspelled_word(sentence, cursor_position, ignored_words=None):
     cursor_position = max(0, min(cursor_position, len(sentence)))
-    ignored_words = ignored_words or []
-    ignored_words = {word.lower() for word in ignored_words}
-    words = get_word_and_position(sentence)
-    words_before_cursor = [w for w in words if w["start"] <= cursor_position]
+    ignored_words = normalize_ignored_words(ignored_words)
 
-    for item in reversed(words_before_cursor):
-        og_word = item["word"]
-        checked_word = og_word.lower()
-        if checked_word in ignored_words:
+    if not sentence.strip():
+        return empty_result(cursor_position)
+
+    matches = get_languagetool_matches(sentence)
+    candidates = []
+
+    for match in matches:
+        if not is_spelling_match(match):
             continue
-        if checked_word in spell.unknown([checked_word]):
-            correction = spell.correction(checked_word)
-            if correction is None:
-                continue
-            return {"word": og_word, "correction": correction, "start": item["start"], "end": item["end"], "cursor_position": cursor_position}
-        
-    return {"word": None, "correction": None, "start": None, "end": None, "cursor_position": cursor_position}
+
+        start = match.get("offset")
+        length = match.get("length")
+        replacements = match.get("replacements", [])
+
+        if not isinstance(start, int) or not isinstance(length, int):
+            continue
+
+        end = start + length
+
+        if start > cursor_position:
+            continue
+
+        if not replacements:
+            continue
+
+        wrong_text = sentence[start:end]
+        correction = replacements[0].get("value")
+
+        if not correction:
+            continue
+
+        if has_whitespace(wrong_text):
+            continue
+
+        if wrong_text.lower() in ignored_words:
+            continue
+
+        candidates.append({
+            "word": wrong_text,
+            "correction": correction,
+            "start": start,
+            "end": end,
+            "cursor_position": cursor_position,
+        })
+
+    if not candidates:
+        return empty_result(cursor_position)
+
+    return max(candidates, key=lambda item: item["start"])
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 3:
