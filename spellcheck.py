@@ -17,6 +17,7 @@ def empty_result(cursor_position):
     return {
         "word": None,
         "correction": None,
+        "suggestions": [],
         "start": None,
         "end": None,
         "cursor_position": cursor_position,
@@ -90,11 +91,16 @@ def find_misspelled_word(sentence, cursor_position, ignored_words=None):
             continue
 
         wrong_text = sentence[start:end]
-        correction = replacements[0].get("value")
+        suggestions = [
+            replacement.get("value")
+            for replacement in replacements
+            if replacement.get("value")
+        ]
 
-        if not correction:
+        if not suggestions:
             continue
 
+        correction = suggestions[0]
         if has_whitespace(wrong_text):
             continue
 
@@ -104,6 +110,7 @@ def find_misspelled_word(sentence, cursor_position, ignored_words=None):
         candidates.append({
             "word": wrong_text,
             "correction": correction,
+            "suggestions": suggestions,
             "start": start,
             "end": end,
             "cursor_position": cursor_position,
