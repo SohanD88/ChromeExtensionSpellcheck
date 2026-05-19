@@ -4,6 +4,9 @@ let hotkey = "Mod+Shift+K"
 let pendingCorrection = null
 let correctionPopup = null
 let ignoredWords = []
+let spellCheckReqId = 0
+let backendErrorPopup = null
+
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
 }
@@ -373,6 +376,37 @@ function hideCorrectionPopup() {
     }
 }
 
+function hideBackendError() {
+    if (backendErrorPopup !== null) {
+        backendErrorPopup.remove()
+        backendErrorPopup = null
+    }
+}
+
+function showBackendError(editor, cursorPosition, message) {
+    hideBackendError()
+
+    const popup = document.createElement("div")
+    const position = editor.getTextPosition(cursorPosition)
+
+    popup.textContent = message
+    popup.style.position = "fixed"
+    popup.style.left = `${position.left}px`
+    popup.style.top = `${position.top + 8}px`
+    popup.style.zIndex = "2147483647"
+    popup.style.maxWidth = "320px"
+    popup.style.background = "#111827"
+    popup.style.color = "#ffffff"
+    popup.style.padding = "10px 12px"
+    popup.style.borderRadius = "8px"
+    popup.style.boxShadow = "0 14px 32px rgba(0, 0, 0, 0.28)"
+    popup.style.font = "13px system-ui, sans-serif"
+    popup.style.lineHeight = "1.35"
+
+    document.documentElement.appendChild(popup)
+    backendErrorPopup = popup
+}
+
 function clearPendingCorrection() {
     pendingCorrection = null
     hideCorrectionPopup()
@@ -646,6 +680,13 @@ function cancelCorrection() {
 }
 
 function handleCorrection(event) {
+
+    if (backendErrorPopup !== null && event.key === "Escape") {
+        event.preventDefault()
+        hideBackendError()
+        return true
+    }
+
     if (pendingCorrection === null) {
         return false
     }
@@ -706,9 +747,14 @@ let enabled = true
 const keys = ["enabled", "hotkey", "ignoredWords"]
 
 async function runSpellcheck(editor, cursorPosition, originalCursor, isSkippingCurrent) {
+    const reqId = ++spellCheckReqId
+    hideBackendError()
     try {
         const sentence = editor.getText()
         const result = await checkSpelling(sentence, cursorPosition)
+        if (reqId !== spellCheckReqId) {
+            return false
+        }
 
         if (
             result.word !== null &&
@@ -741,7 +787,15 @@ async function runSpellcheck(editor, cursorPosition, originalCursor, isSkippingC
         return false
     }
     catch (error) {
-        console.error("Spellcheck backend error: ", error)
+        if (reqId !== spellCheckReqId) {
+            return false
+        }
+        console.error("Spellcheck error: ", error)
+        if (isSkippingCurrent) {
+            editor.selectRange(originalCursor, originalCursor)
+        }
+        clearPendingCorrection()
+        showBackendError(editor, cursorPosition, "Unable to connect to Floh backend. Please try again later.")
         return false
     }
 }

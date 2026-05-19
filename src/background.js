@@ -7,7 +7,7 @@ function setbadgeText(enabled) {
 
 function startUp(){
     chrome.storage.sync.get("enabled", (data) => {
-        setbadgeText(!!data.enabled)
+        setbadgeText(data.enabled !== false)
     })
 }
 
