@@ -469,20 +469,221 @@ function getInputTextPosition(element, index) {
     }
 }
 
+function isTransparentColor(color) {
+    if (!color) {
+        return true
+    }
+
+    const normalized = color.trim().toLowerCase()
+    if (normalized === "transparent") {
+        return true
+    }
+
+    const parsedColor = parseRgbColor(color)
+    return parsedColor !== null && parsedColor.alpha === 0
+}
+
+function parseAlpha(value) {
+    if (!value) {
+        return 1
+    }
+
+    const normalized = value.trim()
+    let parsedValue = parseFloat(normalized)
+
+    if (!Number.isFinite(parsedValue)) {
+        return 1
+    }
+
+    if (normalized.endsWith("%")) {
+        parsedValue = parsedValue / 100
+    }
+
+    return Math.max(0, Math.min(1, parsedValue))
+}
+
+function parseColorChannel(value) {
+    if (!value) {
+        return null
+    }
+
+    const normalized = value.trim()
+    let parsedValue = parseFloat(normalized)
+
+    if (!Number.isFinite(parsedValue)) {
+        return null
+    }
+
+    if (normalized.endsWith("%")) {
+        parsedValue = (parsedValue / 100) * 255
+    }
+
+    return Math.max(0, Math.min(255, parsedValue))
+}
+
+function parseRgbColor(color) {
+    if (typeof color !== "string") {
+        return null
+    }
+
+    const normalized = color.trim()
+
+    if (normalized.startsWith("#")) {
+        const hex = normalized.slice(1)
+        const fullHex = hex.length === 3
+            ? hex.split("").map((char) => char + char).join("")
+            : hex
+
+        if (fullHex.length !== 6 || !/^[0-9a-f]+$/i.test(fullHex)) {
+            return null
+        }
+
+        return {
+            red: parseInt(fullHex.slice(0, 2), 16),
+            green: parseInt(fullHex.slice(2, 4), 16),
+            blue: parseInt(fullHex.slice(4, 6), 16),
+            alpha: 1
+        }
+    }
+
+    const rgbMatch = normalized.match(/^rgba?\((.*)\)$/i)
+    if (!rgbMatch) {
+        return null
+    }
+
+    const rawValue = rgbMatch[1].trim()
+    const slashParts = rawValue.split("/")
+    const colorPart = slashParts[0].trim()
+    const alphaPart = slashParts[1]
+    const parts = colorPart.includes(",")
+        ? colorPart.split(",").map((part) => part.trim())
+        : colorPart.split(/\s+/)
+
+    if (parts.length < 3) {
+        return null
+    }
+
+    const alpha = alphaPart !== undefined
+        ? parseAlpha(alphaPart)
+        : parseAlpha(parts[3])
+
+    const red = parseColorChannel(parts[0])
+    const green = parseColorChannel(parts[1])
+    const blue = parseColorChannel(parts[2])
+
+    if (red === null || green === null || blue === null) {
+        return null
+    }
+
+    return {
+        red,
+        green,
+        blue,
+        alpha
+    }
+}
+
+function relativeLuminance(rgb) {
+    const channels = [rgb.red, rgb.green, rgb.blue].map((channel) => {
+        const value = channel / 255
+        return value <= 0.03928
+            ? value / 12.92
+            : Math.pow((value + 0.055) / 1.055, 2.4)
+    })
+
+    return (0.2126 * channels[0]) + (0.7152 * channels[1]) + (0.0722 * channels[2])
+}
+
+function contrastRatio(first, second) {
+    const firstLuminance = relativeLuminance(first)
+    const secondLuminance = relativeLuminance(second)
+    const lighter = Math.max(firstLuminance, secondLuminance)
+    const darker = Math.min(firstLuminance, secondLuminance)
+
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+function findReadableBackground(element) {
+    let current = element
+
+    while (current instanceof Element) {
+        const background = window.getComputedStyle(current).backgroundColor
+        if (!isTransparentColor(background) && parseRgbColor(background) !== null) {
+            return background
+        }
+
+        current = current.parentElement
+    }
+
+    if (document.body instanceof Element) {
+        const bodyBackground = window.getComputedStyle(document.body).backgroundColor
+        if (!isTransparentColor(bodyBackground) && parseRgbColor(bodyBackground) !== null) {
+            return bodyBackground
+        }
+    }
+
+    return "#ffffff"
+}
+
+function getReadableTextColor(background, preferredTextColor) {
+    const backgroundColor = parseRgbColor(background)
+    const preferredColor = parseRgbColor(preferredTextColor)
+
+    if (backgroundColor === null) {
+        return "#111827"
+    }
+
+    if (
+        preferredColor !== null &&
+        preferredColor.alpha > 0 &&
+        contrastRatio(backgroundColor, preferredColor) >= 4.5
+    ) {
+        return preferredTextColor
+    }
+
+    const darkText = parseRgbColor("#111827")
+    const lightText = parseRgbColor("#ffffff")
+    const darkContrast = contrastRatio(backgroundColor, darkText)
+    const lightContrast = contrastRatio(backgroundColor, lightText)
+
+    return darkContrast >= lightContrast ? "#111827" : "#ffffff"
+}
+
+function getPopupTheme(editorRoot) {
+    try {
+        const background = findReadableBackground(editorRoot)
+        const editorTheme = editorRoot instanceof Element
+            ? window.getComputedStyle(editorRoot)
+            : null
+        const text = getReadableTextColor(background, editorTheme?.color)
+        const backgroundColor = parseRgbColor(background)
+        const lightBackground = backgroundColor === null
+            ? true
+            : relativeLuminance(backgroundColor) > 0.45
+        const border = lightBackground
+            ? "rgba(17, 24, 39, 0.18)"
+            : "rgba(255, 255, 255, 0.22)"
+
+        return {background, text, border}
+    } catch (error) {
+        console.warn("Floh popup theme error: ", error)
+        return {
+            background: "#ffffff",
+            text: "#111827",
+            border: "rgba(17, 24, 39, 0.18)"
+        }
+    }
+}
+
 
 function showCorrectionPopup(item) {
     hideCorrectionPopup()
 
     const popup = document.createElement("div")
-    const theme = window.getComputedStyle(item.editor.root)
-    const isTransparent = (color) => {
-        return !color || color === "transparent" || color === "rgba(0, 0, 0, 0)"
-    }
-    const bodyTheme = window.getComputedStyle(document.body)
-    const background = isTransparent(theme.backgroundColor)
-        ? (isTransparent(bodyTheme.backgroundColor) ? "#111827" : bodyTheme.backgroundColor)
-        : theme.backgroundColor
-    const textColor = isTransparent(theme.color) ? "#ffffff" : theme.color
+    const popupTheme = getPopupTheme(item.editor.root)
+    const background = popupTheme.background
+    const textColor = popupTheme.text
+    const borderColor = popupTheme.border
     const position = item.editor.getTextPosition(item.start)
 
     popup.style.position = "fixed"
@@ -499,7 +700,7 @@ function showCorrectionPopup(item) {
     popup.style.font = "13px system-ui, sans-serif"
     popup.style.lineHeight = "1.35"
     popup.style.pointerEvents = "auto"
-    popup.style.border = `1px solid ${textColor}`
+    popup.style.border = `1px solid ${borderColor}`
     popup.style.opacity = "0"
     popup.style.transform = "translateY(4px) scale(0.98)"
     popup.style.transition = "opacity 120ms ease, transform 120ms ease"
@@ -556,7 +757,7 @@ function showCorrectionPopup(item) {
         button.style.display = "inline-flex"
         button.style.alignItems = "center"
         button.style.gap = "5px"
-        button.style.border = `1px solid ${textColor}`
+        button.style.border = `1px solid ${borderColor}`
         button.style.borderRadius = "999px"
         button.style.padding = "5px 8px"
         button.style.cursor = "pointer"
