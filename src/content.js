@@ -6,6 +6,7 @@ let correctionPopup = null
 let ignoredWords = []
 let spellCheckReqId = 0
 let backendErrorPopup = null
+let unsupportedEditorPopup = null
 
 function isMac() {
     return navigator.platform.toUpperCase().includes("MAC")
@@ -78,6 +79,16 @@ function getElementFromNode(node) {
     return null
 }
 
+function getDeepActiveElement(root = document) {
+    let active = root.activeElement
+
+    while (active?.shadowRoot?.activeElement) {
+        active = active.shadowRoot.activeElement
+    }
+
+    return active
+}
+
 function getContentEditableElement(node) {
     const element = getElementFromNode(node)
 
@@ -94,16 +105,39 @@ function getContentEditableElement(node) {
     return editor
 }
 
-function getActiveEditor() {
-    const activeElement = document.activeElement
-
-    if (isTextElement(activeElement)) {
-        return createInputEditor(activeElement)
+const inputAdapter = {
+    canHandle(target) {
+        return isTextElement(target)
+    },
+    createEditor(target) {
+        return createInputEditor(target)
     }
+}
 
-    const activeContentEditable = getContentEditableElement(activeElement)
-    if (activeContentEditable !== null) {
-        return createContentEditableEditor(activeContentEditable)
+const contentEditableAdapter = {
+    getEditorElement(target) {
+        return getContentEditableElement(target)
+    },
+    canHandle(target) {
+        return this.getEditorElement(target) !== null
+    },
+    createEditor(target) {
+        return createContentEditableEditor(this.getEditorElement(target))
+    }
+}
+
+const editorAdapters = [
+    inputAdapter,
+    contentEditableAdapter
+]
+
+function getActiveEditor() {
+    const activeElement = getDeepActiveElement()
+
+    for (const adapter of editorAdapters) {
+        if (adapter.canHandle(activeElement)) {
+            return adapter.createEditor(activeElement)
+        }
     }
 
     const selection = window.getSelection()
@@ -115,6 +149,21 @@ function getActiveEditor() {
     }
 
     return null
+}
+
+function looksEditable(target) {
+    const element = getElementFromNode(target)
+
+    if (element === null) {
+        return false
+    }
+
+    return (
+        isTextElement(element) ||
+        getContentEditableElement(element) !== null ||
+        element.getAttribute("role") === "textbox" ||
+        element.hasAttribute("contenteditable")
+    )
 }
 
 function dispatchReplacementInput(element, replacement) {
@@ -376,6 +425,8 @@ function hideCorrectionPopup() {
     }
 }
 
+
+
 function hideBackendError() {
     if (backendErrorPopup !== null) {
         backendErrorPopup.remove()
@@ -406,6 +457,34 @@ function showBackendError(editor, cursorPosition, message) {
     document.documentElement.appendChild(popup)
     backendErrorPopup = popup
 }
+
+function hideUnsupportedEditorMessage() {
+    if (unsupportedEditorPopup !== null) {
+        unsupportedEditorPopup.remove()
+        unsupportedEditorPopup = null
+    }
+}
+
+function showUnsupportedEditorMessage() {
+    hideUnsupportedEditorMessage()
+
+    const popup = document.createElement("div")
+    popup.textContent = "Floh cannot read this editor yet."
+    popup.style.position = "fixed"
+    popup.style.right = "16px"
+    popup.style.bottom = "16px"
+    popup.style.zIndex = "2147483647"
+    popup.style.background = "#111827"
+    popup.style.color = "#ffffff"
+    popup.style.padding = "10px 12px"
+    popup.style.borderRadius = "8px"
+    popup.style.boxShadow = "0 14px 32px rgba(0, 0, 0, 0.28)"
+    popup.style.font = "13px system-ui, sans-serif"
+
+    document.documentElement.appendChild(popup)
+    unsupportedEditorPopup = popup
+}
+
 
 function clearPendingCorrection() {
     pendingCorrection = null
@@ -675,6 +754,10 @@ function getPopupTheme(editorRoot) {
     }
 }
 
+function setImportantStyle(element, property, value) {
+    element.style.setProperty(property, value, "important")
+}
+
 
 function showCorrectionPopup(item) {
     hideCorrectionPopup()
@@ -692,15 +775,15 @@ function showCorrectionPopup(item) {
     popup.style.zIndex = "2147483647"
     popup.style.minWidth = "260px"
     popup.style.maxWidth = "380px"
-    popup.style.background = background
-    popup.style.color = textColor
+    setImportantStyle(popup, "background", background)
+    setImportantStyle(popup, "color", textColor)
     popup.style.padding = "12px"
     popup.style.borderRadius = "10px"
     popup.style.boxShadow = "0 14px 32px rgba(0, 0, 0, 0.28)"
     popup.style.font = "13px system-ui, sans-serif"
     popup.style.lineHeight = "1.35"
     popup.style.pointerEvents = "auto"
-    popup.style.border = `1px solid ${borderColor}`
+    setImportantStyle(popup, "border", `1px solid ${borderColor}`)
     popup.style.opacity = "0"
     popup.style.transform = "translateY(4px) scale(0.98)"
     popup.style.transition = "opacity 120ms ease, transform 120ms ease"
@@ -712,6 +795,7 @@ function showCorrectionPopup(item) {
     label.style.letterSpacing = "0"
     label.style.marginBottom = "8px"
     label.style.opacity = "0.68"
+    setImportantStyle(label, "color", textColor)
 
     const correctionButton = document.createElement("button")
     correctionButton.type = "button"
@@ -725,18 +809,22 @@ function showCorrectionPopup(item) {
     correctionButton.style.cursor = "pointer"
     correctionButton.style.fontWeight = "750"
     correctionButton.style.fontSize = "15px"
+    setImportantStyle(correctionButton, "color", textColor)
 
     const wrongWord = document.createElement("span")
     wrongWord.textContent = item.word
     wrongWord.style.textDecoration = "line-through"
     wrongWord.style.opacity = "0.72"
+    setImportantStyle(wrongWord, "color", textColor)
 
     const arrow = document.createElement("span")
     arrow.textContent = "->"
     arrow.style.opacity = "0.7"
+    setImportantStyle(arrow, "color", textColor)
 
     const correctedWord = document.createElement("span")
     correctedWord.textContent = item.correction
+    setImportantStyle(correctedWord, "color", textColor)
 
     correctionButton.appendChild(wrongWord)
     correctionButton.appendChild(arrow)
@@ -757,20 +845,23 @@ function showCorrectionPopup(item) {
         button.style.display = "inline-flex"
         button.style.alignItems = "center"
         button.style.gap = "5px"
-        button.style.border = `1px solid ${borderColor}`
+        setImportantStyle(button, "border", `1px solid ${borderColor}`)
         button.style.borderRadius = "999px"
         button.style.padding = "5px 8px"
         button.style.cursor = "pointer"
         button.style.fontSize = "12px"
         button.style.fontWeight = "650"
         button.style.opacity = "0.82"
+        setImportantStyle(button, "color", textColor)
 
         const keyElement = document.createElement("span")
         keyElement.textContent = key
         keyElement.style.font = "700 11px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        setImportantStyle(keyElement, "color", textColor)
 
         const textElement = document.createElement("span")
         textElement.textContent = labelText
+        setImportantStyle(textElement, "color", textColor)
 
         button.appendChild(keyElement)
         button.appendChild(textElement)
@@ -885,6 +976,12 @@ function handleCorrection(event) {
     if (backendErrorPopup !== null && event.key === "Escape") {
         event.preventDefault()
         hideBackendError()
+        return true
+    }
+
+    if (unsupportedEditorPopup !== null && event.key === "Escape") {
+        event.preventDefault()
+        hideUnsupportedEditorMessage()
         return true
     }
 
@@ -1015,9 +1112,14 @@ document.addEventListener("keydown", async (event) => {
     const editor = getActiveEditor()
 
     if (editor === null) {
+        const activeElement = getDeepActiveElement()
+        if (looksEditable(activeElement)) {
+            event.preventDefault()
+            showUnsupportedEditorMessage()
+        }
         return
     }
-
+    hideUnsupportedEditorMessage()
     event.preventDefault()
     
     const visibleCursor = editor.getCursorIndex()
