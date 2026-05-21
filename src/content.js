@@ -1,5 +1,6 @@
 "use strict"
 
+const SPELLCHECK_API_URL = "http://127.0.0.1:8000/spellcheck"
 let hotkey = "Mod+Shift+K"
 let pendingCorrection = null
 let correctionPopup = null
@@ -402,7 +403,7 @@ function matchCasing(original, correction) {
 }
 
 async function checkSpelling(sentence, cursorPosition) {
-    const response = await fetch("http://127.0.0.1:8000/spellcheck", {
+    const response = await fetch(SPELLCHECK_API_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
@@ -946,11 +947,6 @@ function acceptCorrection() {
     item.editor.focus()
     item.editor.selectRange(newCursorPos, newCursorPos)
 
-    console.log("Accepted correction: ", {
-        word: item.word,
-        correction: item.correction
-    })
-
     pendingCorrection = null
     hideCorrectionPopup()
     return true
@@ -965,7 +961,6 @@ function cancelCorrection() {
     item.editor.focus()
     item.editor.selectRange(item.originalCursor, item.originalCursor)
 
-    console.log("Rejected correction: ", {word: item.word, correction: item.correction})
     pendingCorrection = null
     hideCorrectionPopup()
     return true

@@ -12,6 +12,16 @@ LANGUAGETOOL_URL = os.getenv(
 LANGUAGE = os.getenv("LANGUAGETOOL_LANGUAGE", "en-US")
 TIMEOUT_SECONDS = 5
 
+def check_languagetool_health():
+    response = requests.post(
+        LANGUAGETOOL_URL,
+        data={
+            "text": "health check",
+            "language": LANGUAGE,
+        },
+        timeout=2,
+    )
+    response.raise_for_status()
 
 def empty_result(cursor_position):
     return {
@@ -91,11 +101,11 @@ def find_misspelled_word(sentence, cursor_position, ignored_words=None):
             continue
 
         wrong_text = sentence[start:end]
-        suggestions = [
+        suggestions = list(dict.fromkeys(
             replacement.get("value")
             for replacement in replacements
             if replacement.get("value")
-        ]
+        ))[:5]
 
         if not suggestions:
             continue

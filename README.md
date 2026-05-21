@@ -1,107 +1,133 @@
-# ChromeExtensionSpellcheck
+# Floh
 
-I've always had the issue of typing essays and then having to pick up my mouse, search through the paragraph and fix the errors, or having to delete the word due to a type. To solve this, I created a local prototype Chrome extension that checks spelling in text boxes using a local Python FastAPI backend.
+Floh is a local, keyboard-first Chrome extension for fixing spelling mistakes in web editors. It is designed for mouse-free correction: press a hotkey, review the nearest typo, and use the keyboard to accept, skip, cancel, or ignore the suggestion.
 
-At the current stage, the extension works with real text inputs and textareas. It does not yet support rich text editors like Gmail, Google Docs, Notion, or other `contenteditable` editors.
+Floh currently runs with:
 
-## What It Does
+- a Chrome extension in `src/`
+- a local FastAPI backend on `http://127.0.0.1:8000`
+- a local LanguageTool server on `http://127.0.0.1:8081`
 
-When the extension is enabled:
+## What Floh Does
 
-1. Click inside a supported text box.
+When Floh is enabled:
+
+1. Click inside a supported editor.
 2. Press the configured hotkey.
-3. The extension sends the full text and cursor position to the local backend.
-4. The backend finds the most recent misspelled word at or before the cursor.
-5. The extension highlights that word and shows an in-page popup near it.
-6. The popup shows the typo and the suggested correction.
-7. Press `Enter` or click the correction to accept it.
-8. Press `Escape` or click `Cancel` to reject it.
-9. Press the hotkey again while a typo is highlighted to skip it and move to the previous misspelled word.
+3. Floh sends the editor text, cursor position, and ignored words to the local backend.
+4. The backend asks LanguageTool for spelling suggestions.
+5. Floh selects the nearest misspelled word at or before the cursor.
+6. Floh shows an in-page correction popup near the word.
+7. Use the keyboard to accept, cancel, skip backward, or ignore the word.
 
-The correction result is also printed in the browser console.
+## Supported Editors
 
-## Supported Fields
-
-Currently supported:
+Floh currently supports:
 
 - `<textarea>`
 - `<input type="text">`
 - `<input type="search">`
 - `<input type="url">`
 - `<input type="tel">`
+- generic `contenteditable` editors
+- Gmail compose and reply fields
+- Outlook compose and reply fields when the editable surface is accessible
+- editable iframes when Chrome can inject the content script
+- open shadow-root inputs when the focused element is discoverable
 
-Not currently supported:
+Floh does not currently support:
 
-- Gmail compose boxes
 - Google Docs
-- Notion
-- `contenteditable` rich text editors
-- password fields (for security)
+- PDFs
+- canvas-based editors
+- password fields
+- payment or security-sensitive fields
+- browser internal pages such as `chrome://` pages
+- closed shadow DOM editors
+- inaccessible or sandboxed frames
+- editors that do not expose readable text, caret, selection, and replacement behavior
+
+## Keyboard Controls
+
+The default hotkey is:
+
+```text
+Mod+Shift+K
+```
+
+On macOS, `Mod` means `Command`. On Windows/Linux, `Mod` means `Ctrl`.
+
+Correction controls:
+
+- `Enter`: accept the current correction
+- `Escape`: cancel the correction or dismiss an error/unsupported-editor message
+- `D`: add the selected word to ignored words
+- configured hotkey again: skip the current typo and search backward
+
+Some browser or operating system shortcuts may not reach the extension. If one shortcut does not work, try another such as:
+
+```text
+Ctrl+Shift+K
+Alt+Shift+K
+Ctrl+Shift+Y
+```
 
 ## Backend Setup
 
 From the project folder:
 
 ```bash
-cd /Users/sohandadana/Python/ChromeSpellcheck/ChromeExtensionSpellcheck
+cd /Users/sohandadana/Python/ChromeSpellcheck/Floh
 source venv/bin/activate
-pip install fastapi uvicorn pyspellchecker
+pip install -r requirements.txt
 python -m uvicorn spellcheckAPI:app --reload
 ```
 
-The backend should run at:
+The FastAPI backend runs at:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Test that it is running:
+Check backend health:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Expected response when FastAPI and LanguageTool are both running:
+
+```json
+{
+  "status": "ok",
+  "languagetool": "ok"
+}
+```
+
+## LanguageTool Setup
+
+Floh expects LanguageTool at:
 
 ```text
-http://127.0.0.1:8000/health
+http://127.0.0.1:8081/v2/check
 ```
 
-Expected response:
+You can override the LanguageTool URL:
 
-```json
-{"status":"ok"}
+```bash
+LANGUAGETOOL_URL=http://127.0.0.1:8081/v2/check python -m uvicorn spellcheckAPI:app --reload
 ```
 
-## Backend API
+You can change the language:
 
-### `POST /spellcheck`
-
-Request:
-
-```json
-{
-  "sentence": "This is a missplelled sentnce",
-  "cursor_position": 28
-}
+```bash
+LANGUAGETOOL_LANGUAGE=en-US python -m uvicorn spellcheckAPI:app --reload
 ```
 
-Response:
+The backend uses `ALLOWED_ORIGINS` for CORS. The local default is:
 
-```json
-{
-  "word": "sentnce",
-  "correction": "sentence",
-  "start": 21,
-  "end": 28,
-  "cursor_position": 28
-}
-```
-
-If no misspelled word is found:
-
-```json
-{
-  "word": null,
-  "correction": null,
-  "start": null,
-  "end": null,
-  "cursor_position": 28
-}
+```text
+http://127.0.0.1:8000,http://localhost:8000
 ```
 
 ## Loading The Chrome Extension
@@ -118,130 +144,127 @@ chrome://extensions
 5. Select:
 
 ```text
-ChromeExtensionSpellcheck/src
+/Users/sohandadana/Python/ChromeSpellcheck/Floh/src
 ```
 
-6. Make sure the local backend is running before using the extension.
+6. Make sure FastAPI and LanguageTool are running.
 
-## Using The Extension
+After changing files in `src/`, reload Floh from `chrome://extensions` and refresh the webpage being tested.
 
-1. Open a test page with a real textarea, such as:
+## Using Floh
 
-```text
-https://textarea.page/
-```
-
-2. Type a sentence with multiple spelling mistakes:
+1. Open a supported editor.
+2. Type a sentence with spelling mistakes:
 
 ```text
 There is a speling error in this setnece.
 ```
 
-3. Click inside the text.
-4. Put the cursor near the end of the sentence.
-5. Press the configured hotkey.
-6. The first misspelled word found at or before the cursor should become highlighted. In the example above, this should be `setnece`.
-7. Press the hotkey again to skip `setnece` and move to the previous misspelled word, `speling`.
-8. Press `Enter` to replace the currently highlighted word with the backend correction.
-9. Press `Escape` to reject the currently highlighted correction.
-10. You can also click the correction or `Cancel` in the in-page popup.
+3. Place the cursor after the text.
+4. Press the configured hotkey.
+5. Floh selects the nearest previous typo, such as `setnece`.
+6. Press `Enter` to accept the correction.
+7. Press `Escape` to cancel.
+8. Press the hotkey again to skip backward to the previous typo.
+9. Press `D` to add the selected word to ignored words.
 
-## Correction Popup
+## Backend API
 
-When a typo is highlighted, the extension shows a small in-page popup near the word.
+### `GET /health`
 
-Example:
+Returns backend and LanguageTool status.
 
-```text
-setnece -> sentence
-Enter to accept • Esc to cancel
+Healthy response:
+
+```json
+{
+  "status": "ok",
+  "languagetool": "ok"
+}
 ```
 
-You can accept with `Enter` or by clicking the correction. You can reject with `Escape` or by clicking `Cancel`.
+### `POST /spellcheck`
 
-## Skipping Corrections
+Request:
 
-If a typo is highlighted and you want to leave it unchanged, press the configured hotkey again. The extension keeps the current word unchanged and searches for the previous misspelled word before it.
-
-## Capitalization
-
-The extension preserves basic word casing when applying corrections.
-
-Examples:
-
-```text
-teher -> there
-Teher -> There
-TEHER -> THERE
+```json
+{
+  "sentence": "This is a missplelled sentnce",
+  "cursor_position": 28,
+  "ignored_words": []
+}
 ```
 
-## Hotkey
+Response:
 
-The popup contains:
-
-- an ON/OFF switch
-- a hotkey input
-
-The default hotkey is:
-
-```text
-Mod+Shift+K
+```json
+{
+  "word": "sentnce",
+  "correction": "sentence",
+  "suggestions": ["sentence"],
+  "start": 21,
+  "end": 28,
+  "cursor_position": 28
+}
 ```
 
-On macOS, `Mod` means `Command`.
-On Windows/Linux, `Mod` means `Ctrl`.
+If no misspelled word is found:
 
-Some browser or operating system shortcuts may not reach the extension. If one shortcut does not work, try another one such as:
-
-```text
-Ctrl+Shift+K
-Alt+Shift+K
-Ctrl+Shift+Y
+```json
+{
+  "word": null,
+  "correction": null,
+  "suggestions": [],
+  "start": null,
+  "end": null,
+  "cursor_position": 28
+}
 ```
+
+## Ignored Words
+
+Ignored words are stored with `chrome.storage.sync`.
+
+You can add ignored words from:
+
+- the extension popup
+- the correction popup by pressing `D`
+
+Ignored words are normalized to lowercase before storage.
 
 ## Current Limitations
 
-This is still a prototype.
-
-Current limitations:
-
-- The backend must be running locally.
-- The extension only supports normal textboxes.
-- Rich text editors are not supported yet.
-- Corrections come from `pyspellchecker`.
+- FastAPI must be running locally.
+- LanguageTool must be running locally.
+- Floh currently sends the full editor text to the local backend.
+- Google Docs is not supported.
+- Outlook support depends on the editable surface being accessible to the extension.
 - Only one highlighted correction is handled at a time.
-- The popup currently shows one correction option from the backend.
+- The popup shows one primary correction even though the backend returns multiple suggestions.
 - Casing preservation handles common lowercase, capitalized, and all-uppercase words, but not every mixed-case style.
-- The extension logs debugging information to the browser console.
 
 ## Project Files
 
-Important files:
-
 ```text
-spellcheck.py          Python spellcheck logic
+spellcheck.py          LanguageTool spellcheck logic
 spellcheckAPI.py       FastAPI backend
+requirements.txt       Python dependencies
 src/content.js         Chrome extension page logic
 src/popup.html         Extension popup UI
 src/popup.js           Popup settings logic
+src/popup.css          Popup styles
+src/background.js      Extension background service worker
 src/manifest.json      Chrome extension manifest
 ```
 
-## Development Notes
+## Development Checks
 
-The extension calls the local API from `content.js`:
+Run these before testing:
 
-```text
-http://127.0.0.1:8000/spellcheck
+```bash
+node --check src/content.js
+python3 -m json.tool src/manifest.json
+python3 -m py_compile spellcheck.py spellcheckAPI.py
 ```
 
-The Chrome manifest includes local backend permissions:
-
-```json
-"host_permissions": [
-  "http://127.0.0.1:8000/*",
-  "http://localhost:8000/*"
-]
-```
-
-After changing `manifest.json`, reload the extension from `chrome://extensions`.
+Then reload the extension from `chrome://extensions` and refresh the page being tested.
